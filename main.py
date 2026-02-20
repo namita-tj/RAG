@@ -1,10 +1,8 @@
-import os
 import torch
 import json
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 from torch.nn.functional import softmax
-import numpy as np
 import faiss
 
 # === CONFIG ===

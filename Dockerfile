@@ -1,4 +1,9 @@
-FROM ubuntu:latest
-LABEL authors="namit"
+FROM python:3.10
 
-ENTRYPOINT ["top", "-b"]
+WORKDIR /app
+COPY . .
+
+RUN pip install -r requirements.txt
+
+CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000"]
+
