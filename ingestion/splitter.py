@@ -1,8 +1,8 @@
-import os
 import sys
 import logging
-from langchain_community.document_loaders import PyPDFLoader
+from typing import List
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from loader import load_pdf  # Import from loader.py
 
 
 logging.basicConfig(
@@ -11,42 +11,36 @@ logging.basicConfig(
 )
 
 
-def load_pdf(pdf_path: str):
-    if not os.path.exists(pdf_path):
-        logging.error(f"File not found: {pdf_path}")
-        raise FileNotFoundError(f"The file {pdf_path} does not exist.")
+def perform_chunking(documents: List, chunk_size=800, chunk_overlap=150):
+    """
+    Applies Recursive Character-Based Chunking.
+    Designed for RAG pipelines.
+    """
 
-    try:
-        loader = PyPDFLoader(pdf_path)
-        documents = loader.load()
-        logging.info(f"Loaded {len(documents)} pages.")
-        return documents
-    except Exception as e:
-        logging.exception("Error loading PDF.")
-        raise RuntimeError(f"Failed to load PDF: {str(e)}")
-
-
-def split_documents(documents, chunk_size=1000, chunk_overlap=200):
     if not documents:
-        raise ValueError("No documents provided for splitting.")
+        raise ValueError("No documents provided for chunking.")
 
     try:
         logging.info("Applying RecursiveCharacterTextSplitter...")
+
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap
+            chunk_overlap=chunk_overlap,
+            separators=["\n\n", "\n", ".", " ", ""]
         )
 
         chunks = splitter.split_documents(documents)
-        logging.info(f"Successfully created {len(chunks)} chunks.")
+
+        logging.info(f"Created {len(chunks)} chunks.")
         return chunks
 
     except Exception as e:
-        logging.exception("Error during text splitting.")
-        raise RuntimeError(f"Text splitting failed: {str(e)}")
+        logging.exception("Chunking failed.")
+        raise RuntimeError(f"Chunking error: {str(e)}")
 
 
 if __name__ == "__main__":
+
     if len(sys.argv) < 2:
         print("Usage: python splitter.py <path_to_pdf>")
         sys.exit(1)
@@ -54,8 +48,8 @@ if __name__ == "__main__":
     pdf_path = sys.argv[1]
 
     try:
-        docs = load_pdf(pdf_path)
-        chunks = split_documents(docs)
+        docs = load_pdf(pdf_path)  # Using loader.py
+        chunks = perform_chunking(docs)
 
         print(f"\nTotal chunks created: {len(chunks)}")
         print("\nPreview of first chunk:\n")
