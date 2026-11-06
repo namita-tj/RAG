@@ -1,0 +1,247 @@
+{
+  "config": {
+    "retriever": "bm25",
+    "embed_model": null,
+    "reader": null,
+    "k": 30,
+    "context_chars": 2000,
+    "methods": [
+      "naive",
+      "markdown",
+      "camelot",
+      "ours",
+      "ablate_no_context",
+      "ablate_no_stitch",
+      "ablate_rows_only"
+    ],
+    "python": "3.13.18"
+  },
+  "suites": {
+    "specqa": {
+      "naive": {
+        "ingestion": {
+          "seconds_per_page": 0.0131,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 1.0,
+          "row_with_context": 0.668769716088328,
+          "chunks": 89,
+          "mean_chunk_chars": 721.7
+        },
+        "retrieval": {
+          "found@1000": 0.6529968454258676,
+          "found@2000": 0.6971608832807571,
+          "found@4000": 0.7476340694006309,
+          "median_chars": 795
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.1746031746031746,
+          "found@2000": 0.23809523809523808,
+          "found@4000": 0.36507936507936506,
+          "median_chars": 5595
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.9685863874345549,
+          "found@2000": 1.0,
+          "found@4000": 1.0,
+          "median_chars": 600
+        },
+        "seconds": 2.0
+      },
+      "markdown": {
+        "ingestion": {
+          "seconds_per_page": 0.0185,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 1.0,
+          "row_with_context": 0.0,
+          "chunks": 532,
+          "mean_chunk_chars": 121.0
+        },
+        "retrieval": {
+          "found@1000": 0.1861198738170347,
+          "found@2000": 0.49842271293375395,
+          "found@4000": 0.9558359621451105,
+          "median_chars": 2019
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.3253968253968254,
+          "found@2000": 0.6666666666666666,
+          "found@4000": 0.9761904761904762,
+          "median_chars": 1448
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.09424083769633508,
+          "found@2000": 0.387434554973822,
+          "found@4000": 0.9424083769633508,
+          "median_chars": 2365
+        },
+        "seconds": 2.7
+      },
+      "camelot": {
+        "ingestion": {
+          "seconds_per_page": 0.2849,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 1.0,
+          "row_with_context": 0.0,
+          "chunks": 203,
+          "mean_chunk_chars": 271.9
+        },
+        "retrieval": {
+          "found@1000": 0.031545741324921134,
+          "found@2000": 0.1861198738170347,
+          "found@4000": 0.8359621451104101,
+          "median_chars": 2893
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.047619047619047616,
+          "found@2000": 0.23809523809523808,
+          "found@4000": 0.8492063492063492,
+          "median_chars": 2739
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.020942408376963352,
+          "found@2000": 0.1518324607329843,
+          "found@4000": 0.8272251308900523,
+          "median_chars": 3032
+        },
+        "seconds": 36.0
+      },
+      "ours": {
+        "ingestion": {
+          "seconds_per_page": 0.0208,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 1.0,
+          "row_with_context": 1.0,
+          "chunks": 795,
+          "mean_chunk_chars": 267.8
+        },
+        "retrieval": {
+          "found@1000": 0.7728706624605678,
+          "found@2000": 0.9211356466876972,
+          "found@4000": 1.0,
+          "median_chars": 417
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.8174603174603174,
+          "found@2000": 0.8809523809523809,
+          "found@4000": 1.0,
+          "median_chars": 278
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.743455497382199,
+          "found@2000": 0.9476439790575916,
+          "found@4000": 1.0,
+          "median_chars": 443
+        },
+        "structured_path": {
+          "questions_taken": 192,
+          "of": 445,
+          "correct": 192,
+          "precision": 1.0
+        },
+        "seconds": 3.6
+      },
+      "ablate_no_context": {
+        "ingestion": {
+          "seconds_per_page": 0.0226,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 1.0,
+          "row_with_context": 0.0,
+          "chunks": 795,
+          "mean_chunk_chars": 198.9
+        },
+        "retrieval": {
+          "found@1000": 0.0031545741324921135,
+          "found@2000": 0.13564668769716087,
+          "found@4000": 0.580441640378549,
+          "median_chars": 3311
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.007936507936507936,
+          "found@2000": 0.1984126984126984,
+          "found@4000": 0.6111111111111112,
+          "median_chars": 2819
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.0,
+          "found@2000": 0.09424083769633508,
+          "found@4000": 0.5602094240837696,
+          "median_chars": 3506
+        },
+        "seconds": 3.6
+      },
+      "ablate_no_stitch": {
+        "ingestion": {
+          "seconds_per_page": 0.0209,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 0.9873817034700315,
+          "row_with_context": 0.9873817034700315,
+          "chunks": 878,
+          "mean_chunk_chars": 260.0
+        },
+        "retrieval": {
+          "found@1000": 0.7097791798107256,
+          "found@2000": 0.8927444794952681,
+          "found@4000": 0.9873817034700315,
+          "median_chars": 457
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.7936507936507936,
+          "found@2000": 0.8809523809523809,
+          "found@4000": 0.9682539682539683,
+          "median_chars": 364
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.6544502617801047,
+          "found@2000": 0.900523560209424,
+          "found@4000": 1.0,
+          "median_chars": 609
+        },
+        "seconds": 3.9
+      },
+      "ablate_rows_only": {
+        "ingestion": {
+          "seconds_per_page": 0.0214,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 1.0,
+          "row_with_context": 1.0,
+          "chunks": 619,
+          "mean_chunk_chars": 233.7
+        },
+        "retrieval": {
+          "found@1000": 0.7570977917981072,
+          "found@2000": 0.9274447949526814,
+          "found@4000": 1.0,
+          "median_chars": 410
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.7936507936507936,
+          "found@2000": 0.8809523809523809,
+          "found@4000": 1.0,
+          "median_chars": 277
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.7329842931937173,
+          "found@2000": 0.9581151832460733,
+          "found@4000": 1.0,
+          "median_chars": 431
+        },
+        "seconds": 3.3
+      },
+      "_questions": 445
+    }
+  }
+}
