@@ -60,3 +60,16 @@ def test_reranker_reorders_candidates_and_keeps_ties_stable():
 
     res = answer_questions([{"question": "stage four", "doc_id": "d"}], ranked, Echo(), mode="plain")
     assert res[0].text == "four" and res[0].evidence[0].chunk_id == "a"
+
+
+def test_prefixes_follow_the_model_name():
+    from tablerag.retrieve import Dense, prefixes
+    from test_gpu_paths import HashEncoder
+
+    assert prefixes("BAAI/bge-small-en-v1.5")[0].startswith("Represent this sentence")
+    assert prefixes("intfloat/e5-base-v2") == ("query: ", "passage: ")
+    assert prefixes("BAAI/bge-m3") == ("", "")
+    chunks = [Chunk("a", "d", "pump speed")]
+    # a model passed as an object still gets the right prefix when its name is given
+    assert Dense(chunks, HashEncoder(), model_name="intfloat/e5-base-v2").prefix == "query: "
+    assert Dense(chunks, HashEncoder()).prefix == ""

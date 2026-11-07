@@ -91,9 +91,27 @@ class BM25:
         return _top(self.chunks, self.scores(query), k, doc_id)
 
 
+# query / passage prefixes the embedding models were trained with (found by name)
+PREFIXES = {
+    "bge-small-en": ("Represent this sentence for searching relevant passages: ", ""),
+    "bge-base-en": ("Represent this sentence for searching relevant passages: ", ""),
+    "bge-large-en": ("Represent this sentence for searching relevant passages: ", ""),
+    "e5": ("query: ", "passage: "),
+}
+
+
+def prefixes(model_name: str) -> tuple[str, str]:
+    """(query prefix, passage prefix) for an embedding model; none for models that don't use them (bge-m3)."""
+    for key, value in PREFIXES.items():
+        if key in model_name:
+            return value
+    return "", ""
+
+
 class Dense:
     """Embedding search. ``model`` is a sentence-transformers model name or an object with encode().
-    ``vectors`` are precomputed chunk embeddings (from the index file); without them the chunks are encoded."""
+    ``vectors`` are precomputed chunk embeddings (from the index file); without them the chunks are encoded.
+    The query and passage prefixes follow the model name; pass ``model_name`` when ``model`` is an object."""
 
     def __init__(
         self,
@@ -101,17 +119,21 @@ class Dense:
         model: Any = "BAAI/bge-small-en-v1.5",
         query_prefix: str | None = None,
         vectors: Any = None,
+        model_name: str | None = None,
     ):
+        name = model if isinstance(model, str) else (model_name or "")
+        default_query, passage_prefix = prefixes(name)
         if isinstance(model, str):
             from sentence_transformers import SentenceTransformer
 
-            if query_prefix is None and "bge" in model:
-                query_prefix = "Represent this sentence for searching relevant passages: "
             model = SentenceTransformer(model)
-        self.model, self.prefix = model, query_prefix or ""
+        self.model = model
+        self.prefix = default_query if query_prefix is None else query_prefix
         self.chunks = list(chunks)
         if vectors is None:
-            vectors = self.model.encode([c.text for c in self.chunks], normalize_embeddings=True, batch_size=64)
+            vectors = self.model.encode(
+                [passage_prefix + c.text for c in self.chunks], normalize_embeddings=True, batch_size=64
+            )
         elif len(vectors) != len(self.chunks):
             raise ValueError(f"{len(vectors)} vectors for {len(self.chunks)} chunks")
         else:

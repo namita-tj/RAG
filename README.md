@@ -35,16 +35,21 @@ differs. Run on a free Colab T4.
 | --- | --- | ---: | ---: | ---: |
 | **SpecQA** (synthetic datasheets, 445 questions) | Docling | 37.1% | 52.8% | 41.2% |
 | | Fixed-size chunks | 32.1% | 60.2% | 34.8% |
-| | **Mine** | **94.8%** | **3.1%** | **96.8%** |
+| | **Mine** | **94.8%** | **3.4%** | **96.6%** |
 | **T²-RAGBench** (financial reports, 730 questions) | Docling | 21.5% | 61.9% | 25.8% |
 | | Fixed-size chunks | 19.6% | 65.5% | 23.0% |
-| | **Mine** | 14.5% | **18.5%** | **44.0%** |
+| | **Mine** | **29.9%** | **44.8%** | **40.0%** |
 
 - On datasheets, the pipeline gets 2.5 times as many answers right as Docling, and wrong answers drop from 53% to 3%.
-- On financial reports, wrong answers drop from about 62% to 18.5%. The cost is refusals: most of these questions
-  need a calculation whose result is printed nowhere, and the check can't verify that yet.
+- On financial reports, letting the model write the calculation and the code compute it doubled the correct answers
+  (14.5% → 29.9%, the best of all methods). The price: the check confirms that every number in the formula is
+  printed, not that the formula is right, so wrong answers rose from 18.5% to 44.8%. Precision stays well above
+  every baseline.
 - The biggest single factor is **row context**. Without the section name on each row, finding the right row
   within 1,000 characters drops from 81% to 0%.
+- A retrieval sweep, tuned on half of the documents and tested on the other half, found a better embedding model
+  (`bge-m3`: the right datasheet row within 1,000 characters 89.5% instead of 84.6%), and that a standard
+  cross-encoder reranker makes table retrieval *worse*.
 
 All methods, ablations, metrics and the limits of this comparison: [docs/benchmark.md](docs/benchmark.md).
 
@@ -74,7 +79,7 @@ How the pipeline and the storage are designed, and why: [docs/design.md](docs/de
 
 ```bash
 pip install -e ".[dev]"
-pytest                          # 71 tests
+pytest                          # 74 tests
 python -m tablerag.bench.run    # CPU benchmark, about a minute
 ```
 
@@ -97,11 +102,11 @@ The **benchmark gate** fails a run if any number of my method gets worse than th
 
 - Only digital PDFs with ruled tables.
 - SpecQA is synthetic and was written alongside the pipeline. Each result is one run, without error bars.
-- The GPU results above are from before the filtered counts, totals, calculations and query clean-up; a rerun of
-  my method updates them.
-- The embedding model, the BM25 weight and the 2,000-character context are sensible defaults, not tuned values.
-  The retrieval sweep (`python -m tablerag.bench.sweep`, details in [docs/benchmark.md](docs/benchmark.md)) tunes
-  the first two on one half of the documents and reports on the other half.
+- The answer results use `bge-small`; the sweep found `bge-m3` retrieves better, but the answers haven't been rerun
+  with it yet. The 2,000-character context and the reader model are not tuned (stage 2 in Future work).
+- The calculation check confirms the numbers, not the logic of a formula.
+- The T²-RAGBench numbers include a since-fixed bug: 38 financial questions (5.2%) were wrongly answered as column
+  totals or means. Details in [docs/benchmark.md](docs/benchmark.md).
 
 ## Future work
 
@@ -118,6 +123,9 @@ The **benchmark gate** fails a run if any number of my method gets worse than th
   (Llama 3.2 3B, Phi-3.5-mini, Qwen2.5 7B in 4-bit), with the time per question next to the accuracy.
 - Exact operations as SQL queries over the stored cells, with a test that they match the Python version.
 - A risk-coverage curve: precision when answering 50%, 80% or all questions, instead of one cut-off.
+- Check the logic of a calculation, not only its numbers: the years and row names in the question must match the
+  rows the operands come from.
+- Rerun the answers with `bge-m3`, the best embedding model in the sweep.
 
 **Evaluation**
 - A held-out benchmark on real documents from several fields, and error bars over several runs.
