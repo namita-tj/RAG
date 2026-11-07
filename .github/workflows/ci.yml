@@ -40,3 +40,14 @@ jobs:
         run: pytest --cov --cov-report=term --cov-fail-under=85
       - name: CPU benchmark (ingestion, BM25 retrieval, exact path)
         run: python -m tablerag.bench.run --methods naive markdown ours --data "$RUNNER_TEMP/data" --out "$RUNNER_TEMP/results"
+      # Fails the run if any metric of our method is worse than the committed baseline in results/cpu/,
+      # and writes the comparison table to the run's summary page.
+      - name: Benchmark gate
+        run: python -m tablerag.bench.gate --baseline results/cpu/results.json --current "$RUNNER_TEMP/results/results.json"
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-python-${{ matrix.python-version }}
+          path: ${{ runner.temp }}/results/
+          if-no-files-found: ignore
