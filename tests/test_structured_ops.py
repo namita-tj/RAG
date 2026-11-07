@@ -64,3 +64,73 @@ def test_extremes_and_named_rows():
 def test_a_section_code_that_is_not_in_the_document_links_nothing():
     assert link_tables("How many stages does the PX-900 define?", TABLES) == []
     assert try_structured("How many stages does the PX-900 define?", TABLES) is None
+
+
+# ── filtered counts, totals, means and "which ... highest" ──────────────────────────────
+
+
+def _px100(datasheet):
+    from tablerag.ingest.structured import ingest_structured
+
+    path, sections = datasheet
+    sec = next(s for s in sections if s.code == "PX-100")
+    return ingest_structured(path).tables, sec
+
+
+def test_filtered_counts(datasheet):
+    tables, sec = _px100(datasheet)
+    q = "How many stages of the PX-100 allow intermittent duty?"
+    assert try_structured(q, tables).answer == str(sum("Intermittent" in s.duty for s in sec.stages))
+    q = "How many stages of the PX-100 have a maximum pressure above 5 bar?"
+    res = try_structured(q, tables)
+    assert res.operation == "count_where" and res.answer == str(sum(float(s.pressure) > 5 for s in sec.stages))
+    # the same threshold in another unit of the same quantity
+    q = "How many stages of the PX-100 have a maximum pressure of at least 600 kPa?"
+    assert try_structured(q, tables).answer == str(sum(float(s.pressure) >= 6 for s in sec.stages))
+    # the plain count still works
+    assert try_structured("How many stages does the PX-100 define?", tables).answer == str(len(sec.stages))
+
+
+def test_conditions_it_cannot_place_are_refused(datasheet):
+    tables, _ = _px100(datasheet)
+    assert try_structured("How many stages of the PX-100 are painted blue?", tables) is None
+    # speed is a range column: "above 1000 rpm" could mean the lower or the upper end
+    assert try_structured("How many stages of the PX-100 have a speed above 1000 rpm?", tables) is None
+
+
+def test_totals_and_means(datasheet):
+    tables, sec = _px100(datasheet)
+    pressures = [float(s.pressure) for s in sec.stages]
+    res = try_structured("What is the average maximum pressure of the PX-100 stages?", tables)
+    assert res.operation == "mean" and abs(float(res.answer) - sum(pressures) / len(pressures)) < 1e-6
+    res = try_structured("What is the total maximum pressure over all stages of the PX-100?", tables)
+    assert res.operation == "sum" and float(res.answer) == sum(pressures)
+    # a range column has no single numbers to add up
+    assert try_structured("What is the average speed of the PX-100?", tables) is None
+
+
+def test_which_row_has_the_extreme(datasheet):
+    tables, sec = _px100(datasheet)
+    top = max(float(s.pressure) for s in sec.stages)
+    res = try_structured("Which stage of the PX-100 has the highest maximum pressure?", tables)
+    assert res.operation == "argmax"
+    assert res.answer.split(", ") == [s.name for s in sec.stages if float(s.pressure) == top]  # every tied row
+    # without "which" it is still the value
+    assert try_structured("What is the highest speed of the PX-100, in rpm?", tables).answer == str(
+        max(s.max_rpm for s in sec.stages)
+    )
+
+
+def test_a_count_is_never_answered_by_another_operation(minmax_sheet):
+    from tablerag.ingest.structured import ingest_structured
+
+    path, sections = minmax_sheet
+    tables, sec = ingest_structured(path).tables, sections[0]
+    q = f"How many stages of the {sec.code} have a maximum speed above 2000 rpm?"
+    res = try_structured(q, tables)
+    assert res is not None and res.operation == "count_where"
+    assert res.answer == str(sum(s.max_rpm > 2000 for s in sec.stages))
+    q = f"How many stages of the {sec.code} allow intermittent duty?"  # check-mark columns
+    assert try_structured(q, tables).answer == str(sum(s.intermittent for s in sec.stages))
+    # a comparison outside a count goes to the reader
+    assert try_structured(f"Is the maximum pressure of the {sec.code} above 5 bar?", tables) is None

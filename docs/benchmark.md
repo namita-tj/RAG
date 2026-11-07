@@ -149,9 +149,10 @@ method with the same rules, so a reply like "NOT_FOUND" counts as a refusal for 
 
 ## What's next
 
-- **Checkable calculations.** Let the model write the formula over specific cells (for example
-  `(revenue 2019 - revenue 2018) / revenue 2018`) and have the code calculate it. Then calculated answers can be
-  checked too, which is exactly where FinQA fails today.
+- **Measure the new steps on the GPU.** Checkable calculations, filtered counts, totals, means and the query
+  clean-up are built and tested, but the GPU results above are from before them. The calculation step targets
+  exactly the FinQA questions that are refused today. The rerun reports it as "ours" against "ours without
+  checkable calculations".
 - **A risk-coverage curve** instead of one cut-off: precision when answering 50%, 80% or all questions.
 - **Docling's table model as the front end** for borderless and scanned tables, with my structure layer on top.
 - **Exact operations in SQL.** The rows are already stored with parsed numbers and ranges (see

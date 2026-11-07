@@ -21,6 +21,7 @@ from typing import Any
 
 from tablerag.answer import NOT_FOUND, Answer, answer_questions, within_budget
 from tablerag.ingest.structured import ingest_structured
+from tablerag.query import Reranker, normalize_query
 from tablerag.retrieve import BM25, Dense, Hybrid
 from tablerag.store import Store
 from tablerag.structured_ops import try_structured
@@ -72,7 +73,17 @@ def cmd_index(args: argparse.Namespace) -> int:
     return 1 if report.failed else 0
 
 
-def build_retriever(store: Store, chunks: list[Chunk], kind: str) -> Any:
+def build_retriever(store: Store, chunks: list[Chunk], kind: str, rerank: str | None = None) -> Any:
+    base = _base_retriever(store, chunks, kind)
+    if rerank is None:
+        return base
+    try:
+        return Reranker(base, rerank)
+    except ImportError:
+        raise SystemExit('the reranker needs the optional packages: pip install -e ".[gpu]"') from None
+
+
+def _base_retriever(store: Store, chunks: list[Chunk], kind: str) -> Any:
     bm25 = BM25(chunks)
     if kind == "bm25":
         return bm25
@@ -118,7 +129,7 @@ def cmd_ask(args: argparse.Namespace) -> int:
         chunks, tables = store.load()
         if not chunks:
             raise SystemExit(f"{args.db} is empty: run tablerag index first")
-        retriever = build_retriever(store, chunks, args.retriever)
+        retriever = build_retriever(store, chunks, args.retriever, args.rerank)
     rows = {r.row_id: r for t in tables for r in t.rows}
     by_id = {t.table_id: t for t in tables}
     q = {"question": args.question, "doc_id": args.doc}
@@ -130,14 +141,15 @@ def cmd_ask(args: argparse.Namespace) -> int:
             [q], retriever, HFReader(args.reader), k=args.k, tables=tables, mode="ours", scoped=scoped
         )[0]
     else:
-        hits = [c for c, _ in retriever.search(args.question, args.k, args.doc)]
+        question = normalize_query(args.question)
+        hits = [c for c, _ in retriever.search(question, args.k, args.doc)]
         evidence = within_budget(hits, 2000)
         if scoped:
             candidates = [t for t in tables if t.doc_id == args.doc]
         else:
             seen = {c.meta.get("table_id") for c in evidence}
             candidates = [t for t in tables if t.table_id in seen]
-        op = try_structured(args.question, candidates)
+        op = try_structured(question, candidates)
         if op is not None:
             answer = Answer(op.answer, "structured", evidence, [r.row_id for r in op.rows], op.explanation)
         else:
@@ -197,6 +209,9 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--db", default="index.db")
     a.add_argument("--doc", default=None, help="only search this document (its file name without .pdf)")
     a.add_argument("--retriever", default="bm25", choices=["bm25", "dense", "hybrid"])
+    a.add_argument(
+        "--rerank", default=None, help="cross-encoder that re-orders the top 30, e.g. BAAI/bge-reranker-base"
+    )
     a.add_argument("--reader", default=None, help="Hugging Face model id, e.g. Qwen/Qwen2.5-3B-Instruct")
     a.add_argument("--k", type=int, default=30)
     a.add_argument("--json", action="store_true", help="print the answer as JSON")

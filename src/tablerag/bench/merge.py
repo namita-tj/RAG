@@ -25,6 +25,7 @@ ORDER = [
     "ours_ingest_only",
     "ours_noverify",
     "ours_cite",
+    "ours_nocalc",
     "ours",
     "ablate_no_context",
     "ablate_no_stitch",
