@@ -235,8 +235,8 @@ method with the same rules, so a reply like "NOT_FOUND" counts as a refusal for 
   checked too, which is exactly where FinQA fails today.
 - **A risk-coverage curve** instead of one cut-off: precision when answering 50%, 80% or all questions.
 - **Docling's table model as the front end** for borderless and scanned tables, with my structure layer on top.
-- **Rows in a real database.** Store the rows in SQLite or DuckDB and run the exact operations as SQL, so the
-  deterministic part scales to large document collections.
+- **Exact operations in SQL.** The rows are already stored with parsed numbers and ranges (see "Using it"); the next
+  step is running counts, maximums and range lookups as SQL queries, with a test that they match the Python version.
 - **Formulas, symbols and nested tables**, which the current front end doesn't handle.
 - **A held-out benchmark on real documents** from different fields, to see whether it generalises.
 
@@ -249,11 +249,56 @@ language model at all. In this project the deterministic parts (the exact table 
 in code) moved the accuracy most, and the one time I relied on the model to do bookkeeping, citing row ids,
 it failed.
 
+## Using it
+
+Index a folder of PDFs once, then ask questions. The index is a single SQLite file.
+
+```bash
+pip install -e .
+tablerag index ./pdfs --db index.db
+tablerag ask "Which stage of the PX-100 covers 1450 rpm?" --db index.db
+```
+
+```
+Answer: Stage 7   (structured)
+Because: 1450 rpm lies in Stage 7 of 4.1 PX-100 - Compact pump
+Source: datasheet_7, page 4, Table 4.1-1: Operating points (4.1 PX-100 - Compact pump)
+  Stage: Stage 7; Speed [rpm]: 1380 - 1963; Duty: Intermittent; Max. pressure [bar]: 4
+```
+
+- Every answer says where it came from (document, page, table, row), or "NOT FOUND". `--json` prints it as JSON.
+- Without a reader model, the exact table operations still answer counts, ranges and maximums, and other
+  questions show the best evidence. With `--reader Qwen/Qwen2.5-3B-Instruct` (GPU recommended), it runs the full
+  pipeline including the evidence check.
+- `--embed-model BAAI/bge-small-en-v1.5` at indexing time stores embeddings, so `--retriever hybrid` works
+  without embedding everything again. These two need `pip install -e ".[gpu]"`.
+- Indexing again only reads new or changed files. `tablerag info --db index.db` shows what's inside.
+
+**How it's stored, and why.** I started from what retrieval and answering need from storage: keyword search with
+my own tokenizer, exact vector search, the same chunk ids for both, numeric queries on cells for the exact
+operations, the link from a chunk to its rows for the evidence check, and the same answer every time. A vector
+database covers only the vector part and usually searches approximately; a document database needs a server and
+has no keyword ranking; several specialised databases would have to be kept in sync. So everything lives in one
+SQLite file with three views of the same data:
+
+| View | Tables | Used by |
+| --- | --- | --- |
+| Tables and cells | `tables`, `columns`, `rows`, `cells` (raw text as printed, plus parsed number or range, converted to the base unit) | exact operations, evidence check, sources |
+| Chunks | `chunks`, `chunk_rows` | keyword search, evidence check |
+| Embeddings | `embeddings` (per chunk and model) | semantic search, brute force and exact |
+
+Retrieval itself didn't change: the index loads the same objects ingestion produces, and BM25 and the dense
+search are rebuilt from them. On all 445 SpecQA questions, the stored index gives identical retrieval and
+identical exact answers to the in-memory version, and `tests/test_store.py` checks this on every push. A changed
+document is replaced in one transaction, and an index built by an older version of the pipeline is refused
+instead of mixed with new data. If this ever needs to serve many users, the same design moves to PostgreSQL with
+pgvector.
+
 ## Try it
 
 ```bash
 pip install -e ".[dev]"
-pytest                                   # 47 tests
+pytest                                   # 54 tests
 python -m tablerag.bench.run             # CPU benchmark, about a minute
 python -m tablerag.bench.gate --current benchmarks/results/results.json   # compare with results/cpu
 python -m tablerag.bench.synthetic_docs example/   # look at one of the generated datasheets
@@ -272,6 +317,8 @@ src/tablerag/
   retrieve.py          BM25, dense and hybrid search, shared by all methods
   structured_ops.py    exact answers from stored rows
   answer.py            the reader prompt and the check against the evidence
+  store.py             the SQLite index: tables, rows, cells, chunks, embeddings
+  cli.py               tablerag index / ask / info
   bench/               synthetic datasheets, SpecQA, T²-RAGBench loader, metrics, the benchmark runner,
                        merge.py to combine runs, gate.py to catch regressions in CI
 tests/                 unit tests plus an end-to-end benchmark run

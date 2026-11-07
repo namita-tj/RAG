@@ -92,9 +92,16 @@ class BM25:
 
 
 class Dense:
-    """Embedding search. ``model`` is a sentence-transformers model name or an object with encode()."""
+    """Embedding search. ``model`` is a sentence-transformers model name or an object with encode().
+    ``vectors`` are precomputed chunk embeddings (from the index file); without them the chunks are encoded."""
 
-    def __init__(self, chunks: Sequence[Chunk], model: Any = "BAAI/bge-small-en-v1.5", query_prefix: str | None = None):
+    def __init__(
+        self,
+        chunks: Sequence[Chunk],
+        model: Any = "BAAI/bge-small-en-v1.5",
+        query_prefix: str | None = None,
+        vectors: Any = None,
+    ):
         if isinstance(model, str):
             from sentence_transformers import SentenceTransformer
 
@@ -103,7 +110,18 @@ class Dense:
             model = SentenceTransformer(model)
         self.model, self.prefix = model, query_prefix or ""
         self.chunks = list(chunks)
-        self.vectors = self.model.encode([c.text for c in self.chunks], normalize_embeddings=True, batch_size=64)
+        if vectors is None:
+            vectors = self.model.encode([c.text for c in self.chunks], normalize_embeddings=True, batch_size=64)
+        elif len(vectors) != len(self.chunks):
+            raise ValueError(f"{len(vectors)} vectors for {len(self.chunks)} chunks")
+        else:
+            try:
+                import numpy as np
+
+                vectors = np.asarray(vectors, dtype=np.float32)
+            except ImportError:  # pragma: no cover - numpy comes with sentence-transformers
+                pass
+        self.vectors = vectors
 
     def scores(self, query: str) -> list[float]:
         q = self.model.encode([self.prefix + query], normalize_embeddings=True)[0]
