@@ -75,7 +75,8 @@ same reader (Qwen2.5-3B-Instruct) and 2000 characters of retrieved text. Run on 
 | Camelot | 15.5% | 75.7% | 8.8% | 17.0% |
 | Docling | 37.1% | 52.8% | 10.1% | 41.2% |
 | Mine, ingestion only (same reader, no exact path, no check) | 63.1% | 35.3% | 1.6% | 64.2% |
-| **Mine (full)** | **94.8%** | **3.1%** | **2.0%** | **96.8%** |
+| Mine without checkable calculations | 94.8% | 3.1% | 2.0% | 96.8% |
+| **Mine (full)** | **94.8%** | **3.4%** | **1.8%** | **96.6%** |
 
 With the same reader and the same amount of text, my pipeline gets 2.5 times as many answers right as Docling,
 and wrong answers drop from 53% to 3%. Ingestion alone already takes it from 37% to 63%. The exact path does
@@ -93,15 +94,34 @@ Retrieval tells the same story: the evidence row is inside the first 1000 charac
 | Per-page markdown tables | 17.9% | 56.2% | 25.9% | 24.2% |
 | Camelot | 16.6% | 52.3% | 31.1% | 24.1% |
 | Docling | 21.5% | 61.9% | 16.6% | 25.8% |
-| Mine without the check | 21.6% | 67.0% | 11.4% | 24.4% |
-| **Mine (full)** | 14.5% | **18.5%** | 67.0% | **44.0%** |
+| Mine without the check | 20.1% | 69.2% | 10.7% | 22.5% |
+| Mine without checkable calculations | 13.8% | 22.9% | 63.3% | 37.7% |
+| **Mine (full)** | **29.9%** | 44.8% | 25.3% | **40.0%** |
 
 This one is harder and closer to real life. Every method finds the right document (my retrieval is the best at
 97.8% within 1000 characters, Docling 96.3%), but a 3B reader gets most answers wrong, mainly because most
 FinQA questions need a calculation. Here the check is what matters: wrong answers drop from about 62-67% to
-18.5% and precision nearly doubles. The price is that calculated answers (a ratio, a difference) are printed
-nowhere, so the check refuses them: FinQA correct goes down to 1%. Making those checkable is the next step
-(see "What's next").
+about 23% and precision rises to 37.7%. But calculated answers (a ratio, a difference) are printed nowhere, so
+that check alone refuses them: FinQA correct drops to 1%.
+
+**Checkable calculations** fix most of that. When the model's number isn't printed, it writes the formula, the
+code computes it, and the result is kept only if every number in the formula is printed in the evidence. Correct
+answers double (13.8% → 29.9%), FinQA goes from 1% to 18.2% (Docling 8.9%), and refusals fall from 63% to 25%.
+The cost is honest to state: wrong answers rise from 22.9% to 44.8%, because the check proves the formula's
+*numbers*, not its *logic*. The model can combine the right numbers the wrong way, for example dividing by the
+wrong year. Precision (40.0%) is still well above every baseline (23-26%). Checking the logic too is future work.
+
+**A bug these numbers include, found and fixed.** Without calculations, wrong answers were 22.9% in this run against
+18.5% in the run before, and the new exact operations were the only other change. `python -m tablerag.bench.diagnose`
+runs only the exact path, without a language model, and showed why: on the financial reports it answered 38
+questions (26 as a column total, 8 as a column mean, 4 as a maximum or minimum) and got all 38 wrong. Financial
+questions use these words differently: "what percentage of the *total* debt", "the difference in cumulative *total*
+return", "the *average* of the high and low price". On datasheets "total" meant "over all rows"; here it almost
+never does. Two rules fix it: questions that describe a calculation (percentage, difference, change, ratio, growth,
+cumulative return and similar) never go to the exact path but to the reader and the calculation step, and a total or
+mean has to name what the rows are ("of all stages"). The exact path now answers none of those 38 questions, and
+SpecQA is unchanged (192 questions, all correct). The T²-RAGBench numbers above still include the bug; the 38
+questions are 5.2% of the benchmark, so the next rerun should show fewer wrong answers.
 
 **What I learned from the ablations**
 
@@ -117,8 +137,9 @@ nowhere, so the check refuses them: FinQA correct goes down to 1%. Making those 
 - **On SpecQA the check adds little.** Without it, slightly more answers are right (96.4%) and slightly more are
   wrong (3.6%). My yes/no rule is too strict: correct yes/no answers drop from 81% to 67%.
 
-How the GPU numbers were made: one full run with every method, then a second run of only my method after
-the fix to the check (`results/gpu/runs/`). `python -m tablerag.bench.merge` combines them and rescores every
+How the GPU numbers were made: one full run with every method, a second run of only my method after the fix to
+the check, and a third after the checkable calculations, filtered counts, totals and query clean-up
+(`results/gpu/runs/`; only the summary of the third run survived a Colab reset). `python -m tablerag.bench.merge` combines them and rescores every
 method with the same rules, so a reply like "NOT_FOUND" counts as a refusal for all of them.
 
 ## Limits of this comparison
@@ -162,8 +183,31 @@ compared with alternatives. `src/tablerag/bench/sweep.py` tests them without tun
    to no reranker) against today's defaults.
 
 At weight 1 the sweep reproduces the main benchmark's BM25 numbers exactly, which `tests/test_sweep.py` checks.
-Results: `results/sweep/summary.md`. Tuning the context budget and the reader model (stage 2) needs answers from
-the reader and is future work.
+Tuning the context budget and the reader model (stage 2) needs answers from the reader and is future work.
+
+**Results** (all settings: `results/sweep/summary.md`). On the untouched test half:
+
+| Setting | SpecQA @1000 | SpecQA @2000 | SpecQA MRR | T²-RAGBench @1000 | T²-RAGBench MRR |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Defaults: `bge-small-en-v1.5`, BM25 weight 0.5 | 84.6% | 90.7% | 0.712 | 97.5% | 0.974 |
+| **Chosen: `bge-m3`, embeddings only** | **89.5%** | **95.7%** | **0.840** | **98.1%** | **0.978** |
+
+- **The embedding model matters most for table rows.** Moving from `bge-small` to `bge-m3` adds 5 points on the
+  test half and ranks the right row clearly higher (MRR 0.71 → 0.84). The financial reports are near the ceiling
+  for every model.
+- **The best BM25 weight depends on the model.** The small model needs keywords (best around 0.3-0.7); `bge-m3` is
+  best on its own. So 0.5 was a reasonable default for a small model, but not a universal one.
+- **The reranker hurts.** With `bge-reranker-base` on top, every model lands at 79.4% on SpecQA, below every setting
+  without it. A general-purpose cross-encoder overrides a good ranking and can't tell rows apart that differ only
+  in "Stage 4" and "Stage 14".
+- **Caveats.** The SpecQA dev half is small (4 documents, about 155 questions), so differences of 1-2 points between
+  settings are noise; the 5-point gain on the test half is the trustworthy number. `bge-m3` is about 17 times
+  larger than `bge-small` (568M vs 33M parameters): the right choice on a GPU, slow for indexing on a CPU. Each
+  model took 9-13 minutes on a T4 in the sweep.
+- **A small inconsistency, now fixed.** The main GPU benchmark loaded `bge-small` once and passed it on without its
+  name, so its queries ran without the "Represent this sentence…" instruction the model expects; the sweep used it.
+  Prefixes now follow the model name everywhere (`retrieve.prefixes`). The earlier GPU numbers are slightly
+  pessimistic for the dense part, if anything.
 
 ## What's next
 

@@ -134,3 +134,31 @@ def test_a_count_is_never_answered_by_another_operation(minmax_sheet):
     assert try_structured(q, tables).answer == str(sum(s.intermittent for s in sec.stages))
     # a comparison outside a count goes to the reader
     assert try_structured(f"Is the maximum pressure of the {sec.code} above 5 bar?", tables) is None
+
+
+def test_financial_wording_is_not_a_column_operation():
+    """From the diagnosis on T²-RAGBench: "total", "average" and "highest" in financial questions
+    almost never mean an operation over a whole column."""
+    from tablerag.types import StoredRow, StoredTable
+
+    headers = ["Item", "2019", "2018"]
+    rows = [
+        StoredRow(f"r:t1:r{i}", "r:t1", dict(zip(headers, cells, strict=True)), 1, cells[0])
+        for i, cells in enumerate(
+            [
+                ["Revenue", "5,829", "5,735"],
+                ["Cost of sales", "3,100", "3,050"],
+                ["Total recourse debt", "4,612", "4,500"],
+            ],
+            1,
+        )
+    ]
+    table = StoredTable("r:t1", "r", "Consolidated results", "Annual report", headers, rows, [1])
+    for q in [
+        "What percentage of the total recourse debt was due in 2019?",
+        "What was the difference in the cumulative total return between 2018 and 2019?",
+        "What was the total revenue in 2019?",
+        "What was the average of the high and low values in 2019?",
+        "What is the percentage change from the highest value in 2019?",
+    ]:
+        assert try_structured(q, [table]) is None, q

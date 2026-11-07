@@ -32,7 +32,7 @@ from tablerag.bench.metrics import BUDGETS, chars_until, chunk_has_row, rank_of,
 from tablerag.bench.specqa import ROW_TYPES, build_specqa
 from tablerag.ingest.structured import ingest_structured
 from tablerag.query import Reranker, normalize_query
-from tablerag.retrieve import BM25, _minmax
+from tablerag.retrieve import BM25, _minmax, prefixes
 from tablerag.types import Chunk
 
 DEFAULT = {"model": "BAAI/bge-small-en-v1.5", "weight": 0.5, "rerank": None}
@@ -45,20 +45,7 @@ MODELS = [
 ]
 WEIGHTS = [0.0, 0.3, 0.5, 0.7, 1.0]  # share of BM25: 0 = embeddings only, 1 = keywords only
 RERANKER = "BAAI/bge-reranker-base"
-# query / passage prefixes the models were trained with
-PREFIXES = {
-    "bge-small-en": ("Represent this sentence for searching relevant passages: ", ""),
-    "bge-base-en": ("Represent this sentence for searching relevant passages: ", ""),
-    "e5": ("query: ", "passage: "),
-}
 SIZES = {"small": 0, "base": 1, "m3": 2}  # tie-break: prefer the smaller model
-
-
-def prefixes(model: str) -> tuple[str, str]:
-    for key, value in PREFIXES.items():
-        if key in model:
-            return value
-    return "", ""
 
 
 def size_rank(model: str) -> int:

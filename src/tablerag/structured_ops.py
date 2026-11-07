@@ -37,6 +37,13 @@ _COMPARE = re.compile(
     rf"\s+(\d+(?:[.,]\d+)?)\s*(?:({_UNIT_ALT})(?![\w/]))?",
     re.IGNORECASE,
 )
+# words of a calculation the reader should write as a formula, not an operation over a whole column:
+# "the percentage of the total debt", "the difference in cumulative total return", "the average of the high and low"
+_CALCULATION = re.compile(
+    r"\b(percent(age)?|difference|change[sd]?|ratio|growth|grew|increase[sd]?|decrease[sd]?|compared?|"
+    r"cumulative|return|proportion|share of|fraction|rate)\b|%",
+    re.IGNORECASE,
+)
 _STRICT = {"above", "over", "more than", "greater than", "higher than", "exceeding", "below", "under", "less than"}
 _LOWER = {"below", "under", "less than", "lower than", "at most"}
 # words a count question may contain without being a condition ("How many stages does X define?")
@@ -316,12 +323,16 @@ def _pick_column(query: str, t: StoredTable, columns: list[str]) -> str | None:
 
 
 def aggregate(query: str, tables: list[StoredTable]) -> OpResult | None:
-    """Total or mean of one numeric column ("total power", "average pressure")."""
+    """Total or mean of one numeric column over all rows ("total power of all stages", "average pressure
+    across the stages"). The question has to name what the rows are; "total revenue in 2019" names no rows
+    and is not a sum over a column."""
     is_sum, is_mean = bool(_SUM.search(query)), bool(_MEAN.search(query))
     if is_sum == is_mean:
         return None
     t = _main_table(query, tables)
     if t is None:
+        return None
+    if not {_singular(w) for w in tokenize(query) if w.isalpha()} & (_row_noun(t) - {"row", "entry", "item", "line"}):
         return None
     numeric = [h for h in t.headers[1:] if _numbers(t, h)]
     h = _pick_column(query, t, numeric)
@@ -416,6 +427,8 @@ def try_structured(query: str, tables: list[StoredTable]) -> OpResult | None:
     if not linked or names_a_row(query, linked):
         return None
     q = clean(query)
+    if _CALCULATION.search(q):
+        return None  # a calculation: the reader writes the formula and the code checks it
     if _COUNT.search(q):
         ops = [count_rows]
     elif _COMPARE.search(q):

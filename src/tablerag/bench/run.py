@@ -86,12 +86,12 @@ def ingest_all(name: str, pdfs: list[Path]) -> tuple[list[IngestResult], dict]:
     }
 
 
-def make_retriever(kind: str, chunks, embed_model: Any, rerank: Any = None):  # noqa: ANN001, ANN201
+def make_retriever(kind: str, chunks, embed_model: Any, rerank: Any = None, embed_name: str | None = None):  # noqa: ANN001, ANN201
     bm25 = BM25(chunks)
     if kind == "bm25":
         base = bm25
     else:
-        dense = Dense(chunks, embed_model)
+        dense = Dense(chunks, embed_model, model_name=embed_name)
         base = dense if kind == "dense" else Hybrid(bm25, dense)
     return Reranker(base, rerank) if rerank is not None else base
 
@@ -123,7 +123,9 @@ def run_suite(
             entry["ingestion"].update(ingestion_scores(chunks, gold_rows))
         else:
             entry["ingestion"].update({"chunks": len(chunks)})
-        retriever = make_retriever(args.retriever, chunks, embed_model, getattr(args, "rerank_model", None))
+        retriever = make_retriever(
+            args.retriever, chunks, embed_model, getattr(args, "rerank_model", None), getattr(args, "embed_model", None)
+        )
 
         # retrieval
         ranks, cross = [], []

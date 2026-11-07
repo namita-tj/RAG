@@ -22,7 +22,7 @@ from typing import Any
 from tablerag.answer import NOT_FOUND, Answer, answer_questions, within_budget
 from tablerag.ingest.structured import ingest_structured
 from tablerag.query import Reranker, normalize_query
-from tablerag.retrieve import BM25, Dense, Hybrid
+from tablerag.retrieve import BM25, Dense, Hybrid, prefixes
 from tablerag.store import Store
 from tablerag.structured_ops import try_structured
 from tablerag.types import Chunk, StoredRow, StoredTable
@@ -58,8 +58,10 @@ def cmd_index(args: argparse.Namespace) -> int:
             encoder = load_encoder(args.embed_model)
             model = args.embed_model
 
+            passage_prefix = prefixes(model)[1]
+
             def embed(texts: list[str]) -> Any:
-                return encoder.encode(texts, normalize_embeddings=True, batch_size=64)
+                return encoder.encode([passage_prefix + t for t in texts], normalize_embeddings=True, batch_size=64)
 
         report = store.index(files, ingest_structured, embed, model)
         counts = store.counts()
@@ -93,12 +95,8 @@ def _base_retriever(store: Store, chunks: list[Chunk], kind: str) -> Any:
     vectors = store.vectors(chunks, models[0])
     if vectors is None:
         raise SystemExit(f"some chunks have no {models[0]} embedding: index again with --embed-model {models[0]}")
-    dense = Dense(chunks, load_encoder(models[0]), vectors=vectors, query_prefix=_prefix(models[0]))
+    dense = Dense(chunks, load_encoder(models[0]), vectors=vectors, model_name=models[0])
     return dense if kind == "dense" else Hybrid(bm25, dense)
-
-
-def _prefix(model: str) -> str:
-    return "Represent this sentence for searching relevant passages: " if "bge" in model else ""
 
 
 def source_of(row_ids: list[str], evidence: list[Chunk], rows: dict[str, StoredRow], tables: dict[str, StoredTable]):
