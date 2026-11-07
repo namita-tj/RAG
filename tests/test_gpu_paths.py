@@ -51,7 +51,7 @@ def test_benchmark_loop_with_a_reader(tmp_path):
     args = argparse.Namespace(retriever="bm25", k=30, context_chars=2000)
     block = run.run_suite("specqa", pdfs, questions, ["naive", "ours"], args, FirstRowReader(), None)
     answers = block.pop("_answers")
-    assert set(answers) == {"naive", "ours", "ours_noverify", "ours_ingest_only"}
+    assert set(answers) == {"naive", "ours", "ours_noverify", "ours_cite", "ours_ingest_only"}
     ours = block["ours"]["answers"]
     assert ours["routes"].get("structured", 0) > 0
     assert abs(ours["accuracy"] + ours["wrong_rate"] + ours["refusal_rate"] - 1) < 1e-9

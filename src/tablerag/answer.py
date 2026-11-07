@@ -4,10 +4,14 @@ Every method uses the same reader model and the same prompt. Our method adds two
 
 * questions the stored tables can answer exactly (range lookups, counts, extremes) are
   answered by structured_ops without the model;
-* the model must cite the row id it read the answer from, and the answer is only kept
-  if that row really contains the value ("verified"). Otherwise the system says it could
-  not find the answer. In a specification, "not found" can be checked; a wrong number
-  might not be.
+* every reader answer is checked against the retrieved evidence: it is only kept if the
+  value is printed in a retrieved table row or passage ("verified"). Otherwise the system
+  says it could not find the answer. In a specification, "not found" can be checked; a
+  wrong number might not be.
+
+An earlier version asked the model to cite the row id itself (mode "ours_cite", kept as an
+ablation). Small readers then refused most questions they could answer, so the check is now
+done in code and the model only has to answer.
 """
 
 from __future__ import annotations
@@ -91,7 +95,7 @@ def parse_reply(reply: str) -> tuple[str, str | None]:
 
 
 def is_not_found(answer: str) -> bool:
-    a = norm_key(answer)
+    a = norm_key(answer).replace("_", " ")
     return not a or "not found" in a or a in {"unknown", "n/a", "none"}
 
 
@@ -121,6 +125,41 @@ def verify(answer: str, cited: str | None, evidence: list[Chunk], rows: dict[str
     return support[0] if len(support) == 1 else None
 
 
+def _names_row(question: str, row: StoredRow) -> bool:
+    """True if the question names this row ("... of Stage 4 ..."), not just a prefix of it."""
+    label = norm_key(row.label)
+    return bool(label) and re.search(rf"(?<![\w]){re.escape(label)}(?![\w])", norm_key(question)) is not None
+
+
+def ground(answer: str, question: str, evidence: list[Chunk], rows: dict[str, StoredRow]) -> str | None:
+    """Checks a reader answer against what was retrieved. Returns the supporting row id,
+    "text" when the value is printed in a retrieved passage, or None when nothing retrieved
+    contains it.
+
+    * a value or range must be printed in a retrieved row; if several rows print it, the one
+      the question names is preferred;
+    * yes/no cannot be matched against a cell, so it is only kept when exactly one retrieved
+      row is the row the question names;
+    * otherwise every number in the answer (or the answer text) must appear in a retrieved
+      passage. A calculated result that is printed nowhere is refused.
+    """
+    retrieved = [rows[rid] for rid in dict.fromkeys(rid for c in evidence for rid in c.row_ids) if rid in rows]
+    named = [r for r in retrieved if _names_row(question, r)]
+    if norm_key(answer) in {"yes", "no"}:
+        return named[0].row_id if len(named) == 1 else None
+    support = [r for r in retrieved if _row_supports(r, answer)]
+    if support:
+        preferred = [r for r in support if r in named]
+        return (preferred or support)[0].row_id
+    text = " ".join(c.text for c in evidence)
+    nums = numbers_in(answer)
+    if nums:
+        printed = numbers_in(text)
+        return "text" if all(any(n == p for p in printed) for n in nums) else None
+    key = norm_key(answer)
+    return "text" if len(key) >= 2 and key in norm_key(text) else None
+
+
 def answer_questions(
     questions: list[dict],
     retriever: Retriever,
@@ -139,8 +178,9 @@ def answer_questions(
     sees tables that appear in the retrieved chunks.
 
     mode "plain": retrieve + reader (all baselines).
-    mode "ours":  structured operations first, then retrieve + citing reader + verification.
-    mode "ours_unverified": like "ours" but keeps unverified reader answers (ablation).
+    mode "ours":  structured operations first, then retrieve + reader + check against the evidence.
+    mode "ours_unverified": like "ours" but keeps every reader answer (ablation).
+    mode "ours_cite": like "ours" but the reader must cite a row id (the earlier design, ablation).
     """
     rows = {r.row_id: r for t in (tables or []) for r in t.rows}
     by_doc: dict[str, list[StoredTable]] = {}
@@ -161,7 +201,7 @@ def answer_questions(
             if op is not None:
                 results[i] = Answer(op.answer, "structured", evidence, [r.row_id for r in op.rows], op.explanation)
                 continue
-        template = PROMPT if mode == "plain" else CITE_PROMPT
+        template = CITE_PROMPT if mode == "ours_cite" else PROMPT
         pending.append(
             (
                 i,
@@ -184,9 +224,12 @@ def answer_questions(
                     raw=reply,
                 )
                 continue
-            support = verify(text, cited, evidence, rows)
+            if mode == "ours_cite":
+                support = verify(text, cited, evidence, rows)
+            else:
+                support = ground(text, questions[i]["question"], evidence, rows)
             if support:
-                results[i] = Answer(text, "verified", evidence, [support], reply)
+                results[i] = Answer(text, "verified", evidence, [] if support == "text" else [support], reply)
             elif mode == "ours_unverified":
                 results[i] = Answer(text, "unverified", evidence, [], reply)
             else:
