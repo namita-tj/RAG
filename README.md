@@ -1,145 +1,167 @@
-![CI](https://github.com/namita-tj/RAG/actions/workflows/ci.yml/badge.svg)
+<div align="center">
 
-# Table RAG: getting exact numbers out of technical documents
+# 📊 table-rag
 
-RAG works well on plain text, but tables in technical and scientific documents still break it. Tables get split
-across pages, chunking cuts rows away from their headers, and a row like "Stage 5" means nothing without its
-section. The result is an answer that is close but wrong, and in a datasheet 8 bar instead of 10 bar is not a
-small mistake.
+**Ask questions about tables in technical PDFs, and get the exact number with its source, or an honest "not found"** ♡
 
-This project is a table-aware RAG pipeline, benchmarked against four common approaches including Docling.
-The idea: **be deterministic where precision matters, and use a language model only where it's needed.** A
-number should either be exact and traceable to its cell, or the system should say it doesn't know.
+<a href="https://github.com/namita-tj/table-rag/actions/workflows/ci.yml"><img src="https://github.com/namita-tj/table-rag/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+<img src="https://img.shields.io/badge/python-3.11_|_3.12_|_3.13-331E18?style=flat-square&logo=python&logoColor=FBB019" alt="Python 3.11 to 3.13">
+<img src="https://img.shields.io/badge/benchmark_gate-on-D9707F?style=flat-square&logo=githubactions&logoColor=white" alt="Benchmark gate">
+<img src="https://img.shields.io/badge/license-MIT-6E8F4E?style=flat-square" alt="MIT license">
 
-## How it works
+[What it is](#-what-it-is) · [Why](#-why) · [Results](#-results) · [Quick start](#-quick-start) · [How it works](#-how-it-works) · [Can and can't](#-what-it-can-and-cant-do) · [Docs](#-where-to-find-what)
 
-1. **Keep tables intact.** Tables split across pages are stitched back together, and page headers and footers are
-   removed. Every row is stored as a record with its page, section heading and table caption.
-2. **Retrieve rows, not fragments.** Each row becomes its own chunk with that context, next to whole-table and
-   text chunks. Numbers and units in the question are written the way documents print them ("1,450 revolutions
-   per minute" becomes "1450 rpm"). Search is hybrid, BM25 plus `bge-small` embeddings, with an optional
-   cross-encoder reranker.
-3. **Compute what can be computed.** Counts (also filtered: "how many stages allow intermittent duty"), totals,
-   means, maximums, "which row has the highest value" and "which range contains this value" are answered from
-   the stored table with unit conversion, without the language model.
-4. **Check every answer.** The model's answer is only kept if the value is printed in the retrieved evidence. If
-   the answer needs a calculation, the model writes the formula and the code computes it, and only if every
-   number in the formula is printed in the evidence. Otherwise the answer is "NOT FOUND".
+</div>
 
-## Results
+### 🤔 What it is
+A retrieval-augmented generation (RAG) pipeline built for **tables** in technical and scientific PDFs: datasheets,
+specifications, reports. You index your PDFs once, then ask questions in plain English. Every answer comes with the
+document, page and table row it came from.
 
-Same retriever, same reader (Qwen2.5-3B), same 2,000 characters of context for every method; only the pipeline
-differs. Run on a free Colab T4.
+**For:** engineers and researchers who need numbers they can trust, and anyone comparing table-RAG approaches.
 
-| Benchmark | Method | Correct | Wrong | Precision when answered |
-| --- | --- | ---: | ---: | ---: |
-| **SpecQA** (synthetic datasheets, 445 questions) | Docling | 37.1% | 52.8% | 41.2% |
-| | Fixed-size chunks | 32.1% | 60.2% | 34.8% |
-| | **Mine** | **94.8%** | **3.4%** | **96.6%** |
-| **T²-RAGBench** (financial reports, 730 questions) | Docling | 21.5% | 61.9% | 25.8% |
-| | Fixed-size chunks | 19.6% | 65.5% | 23.0% |
-| | **Mine** | **29.9%** | **44.8%** | **40.0%** |
+### ✨ Why
+In technical documents, the important facts are in tables: pressure limits, speed ranges, tolerances, test
+parameters, revenue figures. Most RAG pipelines are built for text, and tables break them:
 
-- On datasheets, the pipeline gets 2.5 times as many answers right as Docling, and wrong answers drop from 53% to 3%.
-- On financial reports, letting the model write the calculation and the code compute it doubled the correct answers
-  (14.5% → 29.9%, the best of all methods). The price: the check confirms that every number in the formula is
-  printed, not that the formula is right, so wrong answers rose from 18.5% to 44.8%. Precision stays well above
-  every baseline.
-- The biggest single factor is **row context**. Without the section name on each row, finding the right row
-  within 1,000 characters drops from 81% to 0%.
-- A retrieval sweep, tuned on half of the documents and tested on the other half, found a better embedding model
-  (`bge-m3`: the right datasheet row within 1,000 characters 89.5% instead of 84.6%), and that a standard
-  cross-encoder reranker makes table retrieval *worse*.
+- **Tables get split.** A table that runs across two pages becomes two pieces, and the second one has no header,
+  so `10 | 8 | 1450` is just numbers.
+- **Rows lose their context.** A row like "Stage 5" means nothing without its section. The datasheet may have ten
+  products, each with its own Stage 5.
+- **Language models guess.** Given the wrong row, or half a table, the model still answers, and it sounds sure.
 
-All methods, ablations, metrics and the limits of this comparison: [docs/benchmark.md](docs/benchmark.md).
+**Why this matters:** the wrong answer is rarely absurd. It's a real number from the same document, just from the
+wrong row: 8 bar instead of 10 bar, the limit of the neighbouring product. It looks right, so nobody checks it.
+The engineer who uses it to set up a test, size a part or sign off a spec can damage equipment, fail a
+certification or build the wrong thing. And if every answer has to be checked against the PDF anyway, the tool
+saves no time at all.
 
-## Using it
+So a tool for these documents has to do two things: **find the right row**, and **say "not found" rather than
+guess**. I built table-rag to see how far a table-aware pipeline gets on both, and measured it against the
+usual approaches.
+
+### 📈 Results
+Every method got the same search, the same language model (Qwen2.5-3B) and the same amount of text. Only the way
+tables are read and answered differs.
+
+| Method | Datasheets: correct | Datasheets: wrong | Financial reports: correct | Financial reports: precision |
+| --- | ---: | ---: | ---: | ---: |
+| Docling | 37.1% | 52.8% | 21.5% | 25.8% |
+| Fixed-size chunks | 32.1% | 60.2% | 19.6% | 23.0% |
+| **table-rag** | **94.8%** | **3.4%** | **29.9%** | **40.0%** |
+
+**In short:** on datasheets, 2.5 times as many right answers as Docling, with wrong answers down from 53% to 3%.
+Financial reports are harder, because most questions need a calculation, but it's still the best method there.
+*Precision* is the share of answers that are right, counting only the questions it did answer.
+The setup, all methods and the limits of the comparison are in [docs/benchmark.md](docs/benchmark.md).
+
+### 🚀 Quick start
+Needs Python 3.11 or newer.
 
 ```bash
+git clone https://github.com/namita-tj/table-rag.git && cd table-rag
 pip install -e .
-tablerag index ./pdfs --db index.db
+
+python -m tablerag.bench.synthetic_docs example        # no PDFs at hand? this makes a sample datasheet
+tablerag index example --db index.db                    # read the PDFs into one SQLite file
 tablerag ask "Which stage of the PX-100 covers 1450 rpm?" --db index.db
 ```
-
 ```
 Answer: Stage 7   (structured)
 Because: 1450 rpm lies in Stage 7 of 4.1 PX-100 - Compact pump
-Source: datasheet_7, page 4, Table 4.1-1: Operating points (4.1 PX-100 - Compact pump)
+Source: example_datasheet, page 4, Table 4.1-1: Operating points (4.1 PX-100 - Compact pump)
   Stage: Stage 7; Speed [rpm]: 1380 - 1963; Duty: Intermittent; Max. pressure [bar]: 4
 ```
 
-- The index is one SQLite file. Indexing again only reads new or changed PDFs.
-- Without a reader model, counts, ranges and maximums are still answered; other questions show the best evidence.
-- `--reader Qwen/Qwen2.5-3B-Instruct` runs the full pipeline, and `--embed-model BAAI/bge-small-en-v1.5` at
-  indexing time enables `--retriever hybrid`. Both need `pip install -e ".[gpu]"`.
+- Use your own PDFs by pointing `tablerag index` at their folder. Indexing again only reads new or changed files.
+- Without a language model, counts, totals, maximums and range lookups are answered; other questions show the best
+  evidence. Add `--reader Qwen/Qwen2.5-3B-Instruct` for full answers (`pip install -e ".[gpu]"`, a GPU helps).
+- `--json` gives the answer as JSON, and `tablerag info --db index.db` shows what's indexed.
 
-How the pipeline and the storage are designed, and why: [docs/design.md](docs/design.md).
+<details>
+<summary><b>🐍 Use it from Python</b></summary>
 
-## Development
+```python
+from pathlib import Path
 
-```bash
-pip install -e ".[dev]"
-pytest                          # 74 tests
-python -m tablerag.bench.run    # CPU benchmark, about a minute
+from tablerag.answer import answer_questions
+from tablerag.ingest.structured import ingest_structured
+from tablerag.retrieve import BM25
+from tablerag.store import Store
+
+with Store("index.db") as store:
+    store.index(Path("example").glob("*.pdf"), ingest_structured)
+    chunks, tables = store.load()
+
+answer = answer_questions(
+    [{"question": "How many stages does the PX-100 define?", "doc_id": "example_datasheet"}],
+    BM25(chunks), reader=None, tables=tables, mode="ours",
+)[0]
+print(answer.text, answer.route, answer.raw)   # 11 structured 11 rows in 4.1 PX-100 - Compact pump
+```
+`doc_id` is the PDF's file name without `.pdf`. Pass a reader (see `tablerag.answer.HFReader`) for questions the
+table operations can't answer.
+</details>
+
+### 🔧 How it works
+The idea: **treat a table as data, not as text.** Use code where precision matters, and the language model only
+where flexibility is needed.
+
+| Usual RAG | table-rag |
+| --- | --- |
+| Cuts the PDF into fixed-size text chunks, often through the middle of a table | Joins tables split across pages, then stores one record per row |
+| A row is stored without its header or section | Every row carries its column names, section and caption |
+| The language model reads the numbers and does the maths | Counts, totals, maximums and range lookups are computed in code |
+| Whatever the model says is the answer | Every value must be printed in the source, otherwise "not found" |
+| Calculations are trusted as written | The model writes a formula, the code computes it, and every number in it must come from the source |
+
+```mermaid
+flowchart LR
+    A[PDF] --> B[Stitch tables<br/>across pages]
+    B --> C[One record per row<br/>+ section and caption]
+    C --> D[(SQLite index)]
+    Q[Question] --> E[Search<br/>BM25 + embeddings]
+    D --> E
+    E --> F{Count, total,<br/>max or range?}
+    F -- yes --> G[Compute from<br/>the table]
+    F -- no --> H[Language model<br/>reads the rows]
+    H --> I[Check: is it printed<br/>in the source?]
+    G --> J[Answer + source]
+    I --> J
 ```
 
-GitHub Actions does the rest:
+1. **Keep tables intact:** tables split across pages are joined, and every row is stored with its section and caption.
+2. **Retrieve rows, not fragments:** one chunk per row, found with keyword search plus embeddings.
+3. **Compute what can be computed:** counts, totals, maximums and range lookups come straight from the table.
+4. **Check every answer:** a value must be printed in the source. For calculations, the model writes the formula,
+   the code computes it, and every number in it must be printed.
 
-| Workflow | When | What it does |
-| --- | --- | --- |
-| CI | every push and pull request | lint, tests, CPU benchmark, **benchmark gate**, the CLI end to end, links in the docs, Docker build |
-| Weekly dependency check | Mondays | the same checks against the newest dependency versions, to catch upstream changes in PDF libraries |
-| Release | version tag `v*` | tests and gate, then a GitHub Release with the package and benchmark results, and a Docker image on `ghcr.io` |
-| CodeQL | pull requests, weekly | security scan of the code |
-| Dependabot | monthly | update pull requests, which have to pass the gate |
+### ✅ What it can and can't do
+| Works well | Not yet |
+| --- | --- |
+| Digital PDFs with ruled (grid) tables | Borderless tables, scanned pages, tables as images |
+| Tables split across pages | Merged cells and multi-level headers |
+| Exact counts, totals, maximums, range lookups | Checking the *logic* of a calculation, only its numbers |
+| Answers with document, page and row | A web interface (command line and Python only) |
 
-The **benchmark gate** fails a run if any number of my method gets worse than the committed baseline in
-`results/cpu/`, and shows the comparison table on the run's summary page. The full GPU benchmark is
-`notebooks/run_benchmark.ipynb`. To release: set the version in `pyproject.toml`, then
-`git tag v0.2.0 && git push origin v0.2.0`.
+### 💡 What I learned
+- **Row context matters most.** Without the section name on each row, finding the right row drops from 81% to 0%.
+- **Small models can't do bookkeeping.** Asked to cite their sources, they refused almost everything, so the check moved into code.
+- **Not every standard part helps.** A common reranker made table search worse; a stronger embedding model made it better.
+- **Words change meaning between domains.** "Total" in a financial report isn't the sum of a column. A diagnostic caught it, and a test keeps it fixed.
 
-## Limits
+### 📚 Where to find what
+| I want to… | Look here |
+| --- | --- |
+| see every result, ablation and caveat | [docs/benchmark.md](docs/benchmark.md) |
+| understand the design decisions | [docs/design.md](docs/design.md) |
+| check the raw numbers | `results/` |
+| read the code | `src/tablerag/`, with `bench/` for the benchmarks |
+| run the tests and benchmark | `pip install -e ".[dev]"`, then `pytest` and `python -m tablerag.bench.run` |
 
-- Only digital PDFs with ruled tables.
-- SpecQA is synthetic and was written alongside the pipeline. Each result is one run, without error bars.
-- The answer results use `bge-small`; the sweep found `bge-m3` retrieves better, but the answers haven't been rerun
-  with it yet. The 2,000-character context and the reader model are not tuned (stage 2 in Future work).
-- The calculation check confirms the numbers, not the logic of a formula.
-- The T²-RAGBench numbers include a since-fixed bug: 38 financial questions (5.2%) were wrongly answered as column
-  totals or means. Details in [docs/benchmark.md](docs/benchmark.md).
+Every push runs the tests and a **benchmark gate** that blocks any change that makes the numbers worse.
 
-## Future work
+### 🌱 What's next
+Checking the logic of calculations, borderless tables and scans, and a small web interface.
 
-**Reading more kinds of documents**
-- Borderless tables, found by how their words line up in columns.
-- Scanned pages and tables that are images: OpenCV for the grid, Tesseract for the text, and refusal when the OCR
-  is unsure of a number.
-- Symbols, superscripts and subscripts (m/s², x²) from font size and position; full formulas to LaTeX.
-- Merged cells and multi-level headers, rotated pages and multi-column layouts.
-- Docling's table model as a fallback reader, with this structure layer on top.
-
-**Answering**
-- Tuning stage 2: context budget (1,000 / 2,000 / 4,000 characters) and reader models of other families and sizes
-  (Llama 3.2 3B, Phi-3.5-mini, Qwen2.5 7B in 4-bit), with the time per question next to the accuracy.
-- Exact operations as SQL queries over the stored cells, with a test that they match the Python version.
-- A risk-coverage curve: precision when answering 50%, 80% or all questions, instead of one cut-off.
-- Check the logic of a calculation, not only its numbers: the years and row names in the question must match the
-  rows the operands come from.
-- Rerun the answers with `bge-m3`, the best embedding model in the sweep.
-
-**Evaluation**
-- A held-out benchmark on real documents from several fields, and error bars over several runs.
-- One embedding run through the saved index with the real model (the tests use a stand-in).
-
-**Using it**
-- An HTTP API and a small web demo on top of the index.
-
-## Project layout
-
-```
-src/tablerag/   pdf reading, ingestion methods, retrieval, exact operations, answering, store, CLI
-  bench/        benchmark generators, runner, metrics, merge and gate
-tests/          unit tests and an end-to-end benchmark run
-results/        CPU and GPU benchmark results
-docs/           design and benchmark details
-```
+<div align="center"><sub>build cool things that actually work ♡</sub></div>
