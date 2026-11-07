@@ -116,7 +116,12 @@ text. Only the ingestion (and, for my method, the exact path and the verificatio
 
 ### CPU run (keyword search, no language model)
 
-This one runs in CI on every push (`results/cpu/summary.md`).
+This one runs in CI on every push and pull request (`results/cpu/summary.md`), followed by a **benchmark gate**
+(`src/tablerag/bench/gate.py`): it compares the run with the committed numbers and fails if anything about my
+method gets worse, for example rows losing their section, evidence found less often, or the exact path giving
+a single wrong answer. The CPU run is deterministic, so any drop counts. The comparison table appears on the
+run's summary page in GitHub Actions, so a pull request shows its effect on the numbers before it's merged.
+If a change is meant to move the numbers, the pull request updates `results/cpu/` too, and the diff shows it.
 
 | Method | Rows kept whole with their section | Evidence found within 2000 chars | ... for rows on continuation pages |
 | --- | ---: | ---: | ---: |
@@ -248,8 +253,9 @@ it failed.
 
 ```bash
 pip install -e ".[dev]"
-pytest                                   # 42 tests
+pytest                                   # 47 tests
 python -m tablerag.bench.run             # CPU benchmark, about a minute
+python -m tablerag.bench.gate --current benchmarks/results/results.json   # compare with results/cpu
 python -m tablerag.bench.synthetic_docs example/   # look at one of the generated datasheets
 ```
 
@@ -267,7 +273,7 @@ src/tablerag/
   structured_ops.py    exact answers from stored rows
   answer.py            the reader prompt and the check against the evidence
   bench/               synthetic datasheets, SpecQA, T²-RAGBench loader, metrics, the benchmark runner,
-                       and merge.py to combine runs
+                       merge.py to combine runs, gate.py to catch regressions in CI
 tests/                 unit tests plus an end-to-end benchmark run
 results/cpu/           the CPU results above
 results/gpu/           the GPU results: summary.md, results.json, every answer in answers.jsonl, and the raw runs
