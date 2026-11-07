@@ -14,6 +14,9 @@ dependencies = [
     "reportlab>=4.2,<5",  # renders the benchmark PDFs
 ]
 
+[project.scripts]
+tablerag = "tablerag.cli:main"
+
 [project.optional-dependencies]
 # Dense retrieval and the language-model reader (the GPU run on Colab)
 gpu = ["sentence-transformers>=3", "transformers>=4.44", "accelerate>=0.33", "datasets>=2.20"]
