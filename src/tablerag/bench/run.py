@@ -40,6 +40,7 @@ LABELS = {
     "docling": "Docling + HybridChunker",
     "ours": "Ours: structure-aware rows + exact ops + verification",
     "ours_noverify": "Ours without verification",
+    "ours_cite": "Ours with the reader citing row ids (earlier design)",
     "ours_ingest_only": "Ours: ingestion only (plain reader)",
     "ablate_no_context": "Ours without row context",
     "ablate_no_stitch": "Ours without cross-page stitching",
@@ -140,7 +141,12 @@ def run_suite(
         correct = spec_correct if suite == "specqa" else (lambda q, a: number_match(q["answer"], a))
         is_ours = method == "ours"
         modes = (
-            [("ours", "ours"), ("ours_noverify", "ours_unverified"), ("ours_ingest_only", "plain")]
+            [
+                ("ours", "ours"),
+                ("ours_noverify", "ours_unverified"),
+                ("ours_cite", "ours_cite"),
+                ("ours_ingest_only", "plain"),
+            ]
             if is_ours
             else [(method, "plain")]
         )
@@ -199,6 +205,7 @@ def run_suite(
                         "answer": a.text,
                         "route": a.route,
                         "rows": a.rows,
+                        "raw": a.raw,
                         "correct": correct(q, a.text),
                     }
                     for q, a in zip(questions, answers, strict=True)

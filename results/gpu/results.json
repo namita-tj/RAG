@@ -1,0 +1,1173 @@
+{
+  "config": {
+    "retriever": "hybrid",
+    "embed_model": "BAAI/bge-small-en-v1.5",
+    "reader": "Qwen/Qwen2.5-3B-Instruct",
+    "k": 30,
+    "context_chars": 2000,
+    "methods": [
+      "naive",
+      "markdown",
+      "camelot",
+      "docling",
+      "ours",
+      "ablate_no_context",
+      "ablate_no_stitch",
+      "ablate_rows_only"
+    ],
+    "python": "3.13.16"
+  },
+  "suites": {
+    "specqa": {
+      "naive": {
+        "ingestion": {
+          "seconds_per_page": 0.0281,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 1.0,
+          "row_with_context": 0.668769716088328,
+          "chunks": 89,
+          "mean_chunk_chars": 721.7
+        },
+        "retrieval": {
+          "found@1000": 0.637223974763407,
+          "found@2000": 0.7034700315457413,
+          "found@4000": 0.7728706624605678,
+          "median_chars": 800
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.23015873015873015,
+          "found@2000": 0.25396825396825395,
+          "found@4000": 0.42857142857142855,
+          "median_chars": 5689
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.9057591623036649,
+          "found@2000": 1.0,
+          "found@4000": 1.0,
+          "median_chars": 600
+        },
+        "answers": {
+          "accuracy": 0.32134831460674157,
+          "wrong_rate": 0.6022471910112359,
+          "refusal_rate": 0.07640449438202247,
+          "precision": 0.34793187347931875,
+          "n": 445,
+          "by_type": {
+            "value": {
+              "accuracy": 0.5869565217391305,
+              "wrong_rate": 0.30434782608695654,
+              "refusal_rate": 0.10869565217391304,
+              "precision": 0.6585365853658537,
+              "n": 92
+            },
+            "range": {
+              "accuracy": 0.37037037037037035,
+              "wrong_rate": 0.4444444444444444,
+              "refusal_rate": 0.18518518518518517,
+              "precision": 0.45454545454545453,
+              "n": 81
+            },
+            "covers": {
+              "accuracy": 0.020833333333333332,
+              "wrong_rate": 0.8854166666666666,
+              "refusal_rate": 0.09375,
+              "precision": 0.022988505747126436,
+              "n": 96
+            },
+            "flag": {
+              "accuracy": 0.6458333333333334,
+              "wrong_rate": 0.3541666666666667,
+              "refusal_rate": 0.0,
+              "precision": 0.6458333333333334,
+              "n": 48
+            },
+            "count": {
+              "accuracy": 0.10416666666666667,
+              "wrong_rate": 0.8958333333333334,
+              "refusal_rate": 0.0,
+              "precision": 0.10416666666666667,
+              "n": 48
+            },
+            "max": {
+              "accuracy": 0.020833333333333332,
+              "wrong_rate": 0.9791666666666666,
+              "refusal_rate": 0.0,
+              "precision": 0.020833333333333332,
+              "n": 48
+            },
+            "run_in": {
+              "accuracy": 0.625,
+              "wrong_rate": 0.375,
+              "refusal_rate": 0.0,
+              "precision": 0.625,
+              "n": 32
+            }
+          },
+          "cross_page": {
+            "accuracy": 0.19047619047619047,
+            "wrong_rate": 0.5793650793650794,
+            "refusal_rate": 0.23015873015873015,
+            "precision": 0.24742268041237114,
+            "n": 126
+          },
+          "routes": {
+            "reader": 445
+          }
+        },
+        "seconds": 206.2
+      },
+      "markdown": {
+        "ingestion": {
+          "seconds_per_page": 0.0291,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 1.0,
+          "row_with_context": 0.0,
+          "chunks": 532,
+          "mean_chunk_chars": 121.0
+        },
+        "retrieval": {
+          "found@1000": 0.12618296529968454,
+          "found@2000": 0.28391167192429023,
+          "found@4000": 0.8958990536277602,
+          "median_chars": 2677
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.24603174603174602,
+          "found@2000": 0.42857142857142855,
+          "found@4000": 0.8888888888888888,
+          "median_chars": 2232
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.04712041884816754,
+          "found@2000": 0.18848167539267016,
+          "found@4000": 0.900523560209424,
+          "median_chars": 2806
+        },
+        "answers": {
+          "accuracy": 0.15955056179775282,
+          "wrong_rate": 0.7303370786516854,
+          "refusal_rate": 0.1101123595505618,
+          "precision": 0.17929292929292928,
+          "n": 445,
+          "by_type": {
+            "value": {
+              "accuracy": 0.14130434782608695,
+              "wrong_rate": 0.782608695652174,
+              "refusal_rate": 0.07608695652173914,
+              "precision": 0.15294117647058825,
+              "n": 92
+            },
+            "range": {
+              "accuracy": 0.04938271604938271,
+              "wrong_rate": 0.8024691358024691,
+              "refusal_rate": 0.14814814814814814,
+              "precision": 0.057971014492753624,
+              "n": 81
+            },
+            "covers": {
+              "accuracy": 0.020833333333333332,
+              "wrong_rate": 0.8958333333333334,
+              "refusal_rate": 0.08333333333333333,
+              "precision": 0.022727272727272728,
+              "n": 96
+            },
+            "flag": {
+              "accuracy": 0.75,
+              "wrong_rate": 0.25,
+              "refusal_rate": 0.0,
+              "precision": 0.75,
+              "n": 48
+            },
+            "count": {
+              "accuracy": 0.125,
+              "wrong_rate": 0.875,
+              "refusal_rate": 0.0,
+              "precision": 0.125,
+              "n": 48
+            },
+            "max": {
+              "accuracy": 0.0,
+              "wrong_rate": 0.7916666666666666,
+              "refusal_rate": 0.20833333333333334,
+              "precision": 0.0,
+              "n": 48
+            },
+            "run_in": {
+              "accuracy": 0.3125,
+              "wrong_rate": 0.3125,
+              "refusal_rate": 0.375,
+              "precision": 0.5,
+              "n": 32
+            }
+          },
+          "cross_page": {
+            "accuracy": 0.18253968253968253,
+            "wrong_rate": 0.6825396825396826,
+            "refusal_rate": 0.1349206349206349,
+            "precision": 0.21100917431192662,
+            "n": 126
+          },
+          "routes": {
+            "reader": 445
+          }
+        },
+        "seconds": 215.1
+      },
+      "camelot": {
+        "ingestion": {
+          "seconds_per_page": 0.4254,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 1.0,
+          "row_with_context": 0.0,
+          "chunks": 391,
+          "mean_chunk_chars": 155.4
+        },
+        "retrieval": {
+          "found@1000": 0.09779179810725552,
+          "found@2000": 0.26813880126182965,
+          "found@4000": 0.8832807570977917,
+          "median_chars": 2700
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.1984126984126984,
+          "found@2000": 0.4126984126984127,
+          "found@4000": 0.8888888888888888,
+          "median_chars": 2273
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.031413612565445025,
+          "found@2000": 0.17277486910994763,
+          "found@4000": 0.8795811518324608,
+          "median_chars": 2825
+        },
+        "answers": {
+          "accuracy": 0.1550561797752809,
+          "wrong_rate": 0.7573033707865169,
+          "refusal_rate": 0.08764044943820225,
+          "precision": 0.16995073891625614,
+          "n": 445,
+          "by_type": {
+            "value": {
+              "accuracy": 0.11956521739130435,
+              "wrong_rate": 0.7934782608695652,
+              "refusal_rate": 0.08695652173913043,
+              "precision": 0.13095238095238096,
+              "n": 92
+            },
+            "range": {
+              "accuracy": 0.037037037037037035,
+              "wrong_rate": 0.8641975308641975,
+              "refusal_rate": 0.09876543209876543,
+              "precision": 0.0410958904109589,
+              "n": 81
+            },
+            "covers": {
+              "accuracy": 0.0,
+              "wrong_rate": 0.9375,
+              "refusal_rate": 0.0625,
+              "precision": 0.0,
+              "n": 96
+            },
+            "flag": {
+              "accuracy": 0.8333333333333334,
+              "wrong_rate": 0.16666666666666666,
+              "refusal_rate": 0.0,
+              "precision": 0.8333333333333334,
+              "n": 48
+            },
+            "count": {
+              "accuracy": 0.10416666666666667,
+              "wrong_rate": 0.8958333333333334,
+              "refusal_rate": 0.0,
+              "precision": 0.10416666666666667,
+              "n": 48
+            },
+            "max": {
+              "accuracy": 0.0,
+              "wrong_rate": 0.8541666666666666,
+              "refusal_rate": 0.14583333333333334,
+              "precision": 0.0,
+              "n": 48
+            },
+            "run_in": {
+              "accuracy": 0.3125,
+              "wrong_rate": 0.375,
+              "refusal_rate": 0.3125,
+              "precision": 0.45454545454545453,
+              "n": 32
+            }
+          },
+          "cross_page": {
+            "accuracy": 0.16666666666666666,
+            "wrong_rate": 0.6984126984126984,
+            "refusal_rate": 0.1349206349206349,
+            "precision": 0.1926605504587156,
+            "n": 126
+          },
+          "routes": {
+            "reader": 445
+          }
+        },
+        "seconds": 261.4
+      },
+      "docling": {
+        "ingestion": {
+          "seconds_per_page": 0.726,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 0.9873817034700315,
+          "row_with_context": 0.8201892744479495,
+          "chunks": 224,
+          "mean_chunk_chars": 393.6
+        },
+        "retrieval": {
+          "found@1000": 0.6593059936908517,
+          "found@2000": 0.8170347003154574,
+          "found@4000": 0.8233438485804416,
+          "median_chars": 735
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.25396825396825395,
+          "found@2000": 0.5714285714285714,
+          "found@4000": 0.5873015873015873,
+          "median_chars": 1501
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.9267015706806283,
+          "found@2000": 0.9790575916230366,
+          "found@4000": 0.9790575916230366,
+          "median_chars": 600
+        },
+        "answers": {
+          "accuracy": 0.3707865168539326,
+          "wrong_rate": 0.5280898876404494,
+          "refusal_rate": 0.10112359550561797,
+          "precision": 0.4125,
+          "n": 445,
+          "by_type": {
+            "value": {
+              "accuracy": 0.7608695652173914,
+              "wrong_rate": 0.08695652173913043,
+              "refusal_rate": 0.15217391304347827,
+              "precision": 0.8974358974358975,
+              "n": 92
+            },
+            "range": {
+              "accuracy": 0.5555555555555556,
+              "wrong_rate": 0.35802469135802467,
+              "refusal_rate": 0.08641975308641975,
+              "precision": 0.6081081081081081,
+              "n": 81
+            },
+            "covers": {
+              "accuracy": 0.010416666666666666,
+              "wrong_rate": 0.8854166666666666,
+              "refusal_rate": 0.10416666666666667,
+              "precision": 0.011627906976744186,
+              "n": 96
+            },
+            "flag": {
+              "accuracy": 0.5625,
+              "wrong_rate": 0.4166666666666667,
+              "refusal_rate": 0.020833333333333332,
+              "precision": 0.574468085106383,
+              "n": 48
+            },
+            "count": {
+              "accuracy": 0.22916666666666666,
+              "wrong_rate": 0.7708333333333334,
+              "refusal_rate": 0.0,
+              "precision": 0.22916666666666666,
+              "n": 48
+            },
+            "max": {
+              "accuracy": 0.0625,
+              "wrong_rate": 0.9375,
+              "refusal_rate": 0.0,
+              "precision": 0.0625,
+              "n": 48
+            },
+            "run_in": {
+              "accuracy": 0.25,
+              "wrong_rate": 0.34375,
+              "refusal_rate": 0.40625,
+              "precision": 0.42105263157894735,
+              "n": 32
+            }
+          },
+          "cross_page": {
+            "accuracy": 0.35714285714285715,
+            "wrong_rate": 0.3968253968253968,
+            "refusal_rate": 0.24603174603174602,
+            "precision": 0.47368421052631576,
+            "n": 126
+          },
+          "routes": {
+            "reader": 445
+          }
+        },
+        "seconds": 298.7
+      },
+      "ours_ingest_only": {
+        "answers": {
+          "accuracy": 0.6314606741573033,
+          "wrong_rate": 0.35280898876404493,
+          "refusal_rate": 0.015730337078651686,
+          "precision": 0.6415525114155252,
+          "n": 445,
+          "by_type": {
+            "value": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 92
+            },
+            "range": {
+              "accuracy": 0.9135802469135802,
+              "wrong_rate": 0.08641975308641975,
+              "refusal_rate": 0.0,
+              "precision": 0.9135802469135802,
+              "n": 81
+            },
+            "covers": {
+              "accuracy": 0.07291666666666667,
+              "wrong_rate": 0.8541666666666666,
+              "refusal_rate": 0.07291666666666667,
+              "precision": 0.07865168539325842,
+              "n": 96
+            },
+            "flag": {
+              "accuracy": 0.8125,
+              "wrong_rate": 0.1875,
+              "refusal_rate": 0.0,
+              "precision": 0.8125,
+              "n": 48
+            },
+            "count": {
+              "accuracy": 0.2916666666666667,
+              "wrong_rate": 0.7083333333333334,
+              "refusal_rate": 0.0,
+              "precision": 0.2916666666666667,
+              "n": 48
+            },
+            "max": {
+              "accuracy": 0.4791666666666667,
+              "wrong_rate": 0.5208333333333334,
+              "refusal_rate": 0.0,
+              "precision": 0.4791666666666667,
+              "n": 48
+            },
+            "run_in": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 32
+            }
+          },
+          "cross_page": {
+            "accuracy": 0.6746031746031746,
+            "wrong_rate": 0.31746031746031744,
+            "refusal_rate": 0.007936507936507936,
+            "precision": 0.68,
+            "n": 126
+          },
+          "routes": {
+            "reader": 445
+          }
+        }
+      },
+      "ours_noverify": {
+        "answers": {
+          "accuracy": 0.9640449438202248,
+          "wrong_rate": 0.035955056179775284,
+          "refusal_rate": 0.0,
+          "precision": 0.9640449438202248,
+          "n": 445,
+          "by_type": {
+            "value": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 92
+            },
+            "range": {
+              "accuracy": 0.9135802469135802,
+              "wrong_rate": 0.08641975308641975,
+              "refusal_rate": 0.0,
+              "precision": 0.9135802469135802,
+              "n": 81
+            },
+            "covers": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 96
+            },
+            "flag": {
+              "accuracy": 0.8125,
+              "wrong_rate": 0.1875,
+              "refusal_rate": 0.0,
+              "precision": 0.8125,
+              "n": 48
+            },
+            "count": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 48
+            },
+            "max": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 48
+            },
+            "run_in": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 32
+            }
+          },
+          "cross_page": {
+            "accuracy": 0.9365079365079365,
+            "wrong_rate": 0.06349206349206349,
+            "refusal_rate": 0.0,
+            "precision": 0.9365079365079365,
+            "n": 126
+          },
+          "routes": {
+            "verified": 244,
+            "structured": 192,
+            "unverified": 9
+          }
+        }
+      },
+      "ours_cite": {
+        "answers": {
+          "accuracy": 0.43595505617977526,
+          "wrong_rate": 0.01348314606741573,
+          "refusal_rate": 0.550561797752809,
+          "precision": 0.97,
+          "n": 445,
+          "by_type": {
+            "value": {
+              "accuracy": 0.0,
+              "wrong_rate": 0.010869565217391304,
+              "refusal_rate": 0.9891304347826086,
+              "precision": 0.0,
+              "n": 92
+            },
+            "range": {
+              "accuracy": 0.012345679012345678,
+              "wrong_rate": 0.04938271604938271,
+              "refusal_rate": 0.9382716049382716,
+              "precision": 0.2,
+              "n": 81
+            },
+            "covers": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 96
+            },
+            "flag": {
+              "accuracy": 0.020833333333333332,
+              "wrong_rate": 0.020833333333333332,
+              "refusal_rate": 0.9583333333333334,
+              "precision": 0.5,
+              "n": 48
+            },
+            "count": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 48
+            },
+            "max": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 48
+            },
+            "run_in": {
+              "accuracy": 0.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 1.0,
+              "precision": 0.0,
+              "n": 32
+            }
+          },
+          "cross_page": {
+            "accuracy": 0.2777777777777778,
+            "wrong_rate": 0.007936507936507936,
+            "refusal_rate": 0.7142857142857143,
+            "precision": 0.9722222222222222,
+            "n": 126
+          },
+          "routes": {
+            "refused": 245,
+            "structured": 192,
+            "verified": 8
+          }
+        }
+      },
+      "ours": {
+        "ingestion": {
+          "seconds_per_page": 0.0277,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 1.0,
+          "row_with_context": 1.0,
+          "chunks": 795,
+          "mean_chunk_chars": 267.8
+        },
+        "retrieval": {
+          "found@1000": 0.8138801261829653,
+          "found@2000": 0.9211356466876972,
+          "found@4000": 1.0,
+          "median_chars": 266
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.8650793650793651,
+          "found@2000": 0.9444444444444444,
+          "found@4000": 1.0,
+          "median_chars": 265
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.7801047120418848,
+          "found@2000": 0.9057591623036649,
+          "found@4000": 1.0,
+          "median_chars": 274
+        },
+        "answers": {
+          "accuracy": 0.9483146067415731,
+          "wrong_rate": 0.03146067415730337,
+          "refusal_rate": 0.020224719101123594,
+          "precision": 0.9678899082568807,
+          "n": 445,
+          "by_type": {
+            "value": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 92
+            },
+            "range": {
+              "accuracy": 0.9135802469135802,
+              "wrong_rate": 0.07407407407407407,
+              "refusal_rate": 0.012345679012345678,
+              "precision": 0.925,
+              "n": 81
+            },
+            "covers": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 96
+            },
+            "flag": {
+              "accuracy": 0.6666666666666666,
+              "wrong_rate": 0.16666666666666666,
+              "refusal_rate": 0.16666666666666666,
+              "precision": 0.8,
+              "n": 48
+            },
+            "count": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 48
+            },
+            "max": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 48
+            },
+            "run_in": {
+              "accuracy": 1.0,
+              "wrong_rate": 0.0,
+              "refusal_rate": 0.0,
+              "precision": 1.0,
+              "n": 32
+            }
+          },
+          "cross_page": {
+            "accuracy": 0.9365079365079365,
+            "wrong_rate": 0.06349206349206349,
+            "refusal_rate": 0.0,
+            "precision": 0.9365079365079365,
+            "n": 126
+          },
+          "routes": {
+            "verified": 244,
+            "structured": 192,
+            "refused": 9
+          }
+        },
+        "seconds": 612.4
+      },
+      "ablate_no_context": {
+        "ingestion": {
+          "seconds_per_page": 0.0265,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 1.0,
+          "row_with_context": 0.0,
+          "chunks": 795,
+          "mean_chunk_chars": 198.9
+        },
+        "retrieval": {
+          "found@1000": 0.0,
+          "found@2000": 0.2618296529968454,
+          "found@4000": 0.722397476340694,
+          "median_chars": 2529
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.0,
+          "found@2000": 0.38095238095238093,
+          "found@4000": 0.8015873015873016,
+          "median_chars": 2294
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.0,
+          "found@2000": 0.18324607329842932,
+          "found@4000": 0.6701570680628273,
+          "median_chars": 2649
+        },
+        "seconds": 10.8
+      },
+      "ablate_no_stitch": {
+        "ingestion": {
+          "seconds_per_page": 0.0312,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 0.9873817034700315,
+          "row_with_context": 0.9873817034700315,
+          "chunks": 878,
+          "mean_chunk_chars": 260.0
+        },
+        "retrieval": {
+          "found@1000": 0.7634069400630915,
+          "found@2000": 0.9242902208201893,
+          "found@4000": 0.9810725552050473,
+          "median_chars": 278
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.746031746031746,
+          "found@2000": 0.873015873015873,
+          "found@4000": 0.9523809523809523,
+          "median_chars": 273
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.774869109947644,
+          "found@2000": 0.9581151832460733,
+          "found@4000": 1.0,
+          "median_chars": 427
+        },
+        "seconds": 12.3
+      },
+      "ablate_rows_only": {
+        "ingestion": {
+          "seconds_per_page": 0.0308,
+          "errors": 0,
+          "first_error": null,
+          "rows": 317,
+          "row_intact": 1.0,
+          "row_with_context": 1.0,
+          "chunks": 619,
+          "mean_chunk_chars": 233.7
+        },
+        "retrieval": {
+          "found@1000": 0.804416403785489,
+          "found@2000": 0.9211356466876972,
+          "found@4000": 1.0,
+          "median_chars": 267
+        },
+        "retrieval_cross_page": {
+          "found@1000": 0.8333333333333334,
+          "found@2000": 0.9444444444444444,
+          "found@4000": 1.0,
+          "median_chars": 265
+        },
+        "retrieval_same_page": {
+          "found@1000": 0.7853403141361257,
+          "found@2000": 0.9057591623036649,
+          "found@4000": 1.0,
+          "median_chars": 275
+        },
+        "seconds": 11.3
+      },
+      "_questions": 445
+    },
+    "t2": {
+      "naive": {
+        "ingestion": {
+          "seconds_per_page": 0.1026,
+          "errors": 0,
+          "first_error": null,
+          "chunks": 1002
+        },
+        "retrieval": {
+          "found@1000": 0.9054794520547945,
+          "found@2000": 0.9684931506849315,
+          "found@4000": 0.9863013698630136,
+          "median_chars": 200
+        },
+        "answers": {
+          "accuracy": 0.1958904109589041,
+          "wrong_rate": 0.6547945205479452,
+          "refusal_rate": 0.14931506849315068,
+          "precision": 0.23027375201288244,
+          "n": 730,
+          "by_type": {
+            "FinQA": {
+              "accuracy": 0.06622516556291391,
+              "wrong_rate": 0.7814569536423841,
+              "refusal_rate": 0.152317880794702,
+              "precision": 0.078125,
+              "n": 302
+            },
+            "TAT-DQA": {
+              "accuracy": 0.28738317757009346,
+              "wrong_rate": 0.5654205607476636,
+              "refusal_rate": 0.14719626168224298,
+              "precision": 0.336986301369863,
+              "n": 428
+            }
+          },
+          "routes": {
+            "reader": 730
+          }
+        },
+        "seconds": 365.9
+      },
+      "markdown": {
+        "ingestion": {
+          "seconds_per_page": 0.1383,
+          "errors": 0,
+          "first_error": null,
+          "chunks": 1344
+        },
+        "retrieval": {
+          "found@1000": 0.9178082191780822,
+          "found@2000": 0.9616438356164384,
+          "found@4000": 0.9863013698630136,
+          "median_chars": 200
+        },
+        "answers": {
+          "accuracy": 0.17945205479452056,
+          "wrong_rate": 0.5616438356164384,
+          "refusal_rate": 0.2589041095890411,
+          "precision": 0.24214417744916822,
+          "n": 730,
+          "by_type": {
+            "FinQA": {
+              "accuracy": 0.059602649006622516,
+              "wrong_rate": 0.6225165562913907,
+              "refusal_rate": 0.31788079470198677,
+              "precision": 0.08737864077669903,
+              "n": 302
+            },
+            "TAT-DQA": {
+              "accuracy": 0.26401869158878505,
+              "wrong_rate": 0.5186915887850467,
+              "refusal_rate": 0.21728971962616822,
+              "precision": 0.3373134328358209,
+              "n": 428
+            }
+          },
+          "routes": {
+            "reader": 730
+          }
+        },
+        "seconds": 364.6
+      },
+      "camelot": {
+        "ingestion": {
+          "seconds_per_page": 0.5041,
+          "errors": 0,
+          "first_error": null,
+          "chunks": 1240
+        },
+        "retrieval": {
+          "found@1000": 0.8863013698630137,
+          "found@2000": 0.958904109589041,
+          "found@4000": 0.989041095890411,
+          "median_chars": 200
+        },
+        "answers": {
+          "accuracy": 0.16575342465753426,
+          "wrong_rate": 0.5232876712328767,
+          "refusal_rate": 0.31095890410958904,
+          "precision": 0.24055666003976142,
+          "n": 730,
+          "by_type": {
+            "FinQA": {
+              "accuracy": 0.06622516556291391,
+              "wrong_rate": 0.6390728476821192,
+              "refusal_rate": 0.2947019867549669,
+              "precision": 0.09389671361502347,
+              "n": 302
+            },
+            "TAT-DQA": {
+              "accuracy": 0.23598130841121495,
+              "wrong_rate": 0.441588785046729,
+              "refusal_rate": 0.32242990654205606,
+              "precision": 0.3482758620689655,
+              "n": 428
+            }
+          },
+          "routes": {
+            "reader": 730
+          }
+        },
+        "seconds": 471.6
+      },
+      "docling": {
+        "ingestion": {
+          "seconds_per_page": 0.804,
+          "errors": 0,
+          "first_error": null,
+          "chunks": 1099
+        },
+        "retrieval": {
+          "found@1000": 0.963013698630137,
+          "found@2000": 0.9876712328767123,
+          "found@4000": 0.9945205479452055,
+          "median_chars": 200
+        },
+        "answers": {
+          "accuracy": 0.21506849315068494,
+          "wrong_rate": 0.6191780821917808,
+          "refusal_rate": 0.16575342465753426,
+          "precision": 0.25779967159277506,
+          "n": 730,
+          "by_type": {
+            "FinQA": {
+              "accuracy": 0.08940397350993377,
+              "wrong_rate": 0.6854304635761589,
+              "refusal_rate": 0.2251655629139073,
+              "precision": 0.11538461538461539,
+              "n": 302
+            },
+            "TAT-DQA": {
+              "accuracy": 0.3037383177570093,
+              "wrong_rate": 0.572429906542056,
+              "refusal_rate": 0.12383177570093458,
+              "precision": 0.3466666666666667,
+              "n": 428
+            }
+          },
+          "routes": {
+            "reader": 730
+          }
+        },
+        "seconds": 589.7
+      },
+      "ours_ingest_only": {
+        "answers": {
+          "accuracy": 0.22054794520547946,
+          "wrong_rate": 0.6657534246575343,
+          "refusal_rate": 0.1136986301369863,
+          "precision": 0.24884080370942813,
+          "n": 730,
+          "by_type": {
+            "FinQA": {
+              "accuracy": 0.059602649006622516,
+              "wrong_rate": 0.7980132450331126,
+              "refusal_rate": 0.1423841059602649,
+              "precision": 0.0694980694980695,
+              "n": 302
+            },
+            "TAT-DQA": {
+              "accuracy": 0.3341121495327103,
+              "wrong_rate": 0.572429906542056,
+              "refusal_rate": 0.09345794392523364,
+              "precision": 0.36855670103092786,
+              "n": 428
+            }
+          },
+          "routes": {
+            "reader": 730
+          }
+        }
+      },
+      "ours_noverify": {
+        "answers": {
+          "accuracy": 0.21643835616438356,
+          "wrong_rate": 0.6698630136986301,
+          "refusal_rate": 0.1136986301369863,
+          "precision": 0.24420401854714066,
+          "n": 730,
+          "by_type": {
+            "FinQA": {
+              "accuracy": 0.052980132450331126,
+              "wrong_rate": 0.804635761589404,
+              "refusal_rate": 0.1423841059602649,
+              "precision": 0.06177606177606178,
+              "n": 302
+            },
+            "TAT-DQA": {
+              "accuracy": 0.3317757009345794,
+              "wrong_rate": 0.5747663551401869,
+              "refusal_rate": 0.09345794392523364,
+              "precision": 0.36597938144329895,
+              "n": 428
+            }
+          },
+          "routes": {
+            "unverified": 406,
+            "verified": 235,
+            "refused": 83,
+            "structured": 6
+          }
+        }
+      },
+      "ours_cite": {
+        "answers": {
+          "accuracy": 0.0013698630136986301,
+          "wrong_rate": 0.01780821917808219,
+          "refusal_rate": 0.9808219178082191,
+          "precision": 0.07142857142857142,
+          "n": 730,
+          "by_type": {
+            "FinQA": {
+              "accuracy": 0.0,
+              "wrong_rate": 0.019867549668874173,
+              "refusal_rate": 0.9801324503311258,
+              "precision": 0.0,
+              "n": 302
+            },
+            "TAT-DQA": {
+              "accuracy": 0.002336448598130841,
+              "wrong_rate": 0.016355140186915886,
+              "refusal_rate": 0.9813084112149533,
+              "precision": 0.125,
+              "n": 428
+            }
+          },
+          "routes": {
+            "refused": 716,
+            "structured": 6,
+            "verified": 8
+          }
+        }
+      },
+      "ours": {
+        "ingestion": {
+          "seconds_per_page": 0.1316,
+          "errors": 0,
+          "first_error": null,
+          "chunks": 3403
+        },
+        "retrieval": {
+          "found@1000": 0.9780821917808219,
+          "found@2000": 0.9958904109589041,
+          "found@4000": 0.9986301369863013,
+          "median_chars": 200
+        },
+        "answers": {
+          "accuracy": 0.14520547945205478,
+          "wrong_rate": 0.18493150684931506,
+          "refusal_rate": 0.6698630136986301,
+          "precision": 0.43983402489626555,
+          "n": 730,
+          "by_type": {
+            "FinQA": {
+              "accuracy": 0.009933774834437087,
+              "wrong_rate": 0.20860927152317882,
+              "refusal_rate": 0.7814569536423841,
+              "precision": 0.045454545454545456,
+              "n": 302
+            },
+            "TAT-DQA": {
+              "accuracy": 0.24065420560747663,
+              "wrong_rate": 0.16822429906542055,
+              "refusal_rate": 0.5911214953271028,
+              "precision": 0.5885714285714285,
+              "n": 428
+            }
+          },
+          "routes": {
+            "refused": 489,
+            "verified": 235,
+            "structured": 6
+          }
+        },
+        "seconds": 1743.9
+      },
+      "ablate_no_context": {
+        "ingestion": {
+          "seconds_per_page": 0.14,
+          "errors": 0,
+          "first_error": null,
+          "chunks": 3403
+        },
+        "retrieval": {
+          "found@1000": 0.8931506849315068,
+          "found@2000": 0.9534246575342465,
+          "found@4000": 0.9835616438356164,
+          "median_chars": 200
+        },
+        "seconds": 77.0
+      },
+      "ablate_no_stitch": {
+        "ingestion": {
+          "seconds_per_page": 0.1378,
+          "errors": 0,
+          "first_error": null,
+          "chunks": 3449
+        },
+        "retrieval": {
+          "found@1000": 0.9780821917808219,
+          "found@2000": 0.9958904109589041,
+          "found@4000": 0.9986301369863013,
+          "median_chars": 200
+        },
+        "seconds": 78.7
+      },
+      "ablate_rows_only": {
+        "ingestion": {
+          "seconds_per_page": 0.14,
+          "errors": 0,
+          "first_error": null,
+          "chunks": 2739
+        },
+        "retrieval": {
+          "found@1000": 0.9808219178082191,
+          "found@2000": 0.9945205479452055,
+          "found@4000": 0.9986301369863013,
+          "median_chars": 200
+        },
+        "seconds": 72.0
+      },
+      "_questions": 730
+    }
+  }
+}
