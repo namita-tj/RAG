@@ -11,7 +11,7 @@ license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = [
     "pdfplumber>=0.11,<0.12",
-    "reportlab>=4.2,<5",  # renders the benchmark PDFs
+    "reportlab>=4.2,<6",  # renders the benchmark PDFs
 ]
 
 [project.scripts]
@@ -22,7 +22,7 @@ tablerag = "tablerag.cli:main"
 gpu = ["sentence-transformers>=3", "transformers>=4.44", "accelerate>=0.33", "datasets>=2.20"]
 # Other ingestion methods compared in the benchmark
 baselines = ["camelot-py>=1.0", "docling>=2.40"]
-dev = ["pytest==8.3.4", "pytest-cov==6.0.0", "ruff==0.8.6", "numpy>=1.26"]
+dev = ["pytest==9.2.0", "pytest-cov==7.1.0", "ruff==0.17.3", "numpy>=1.26"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
