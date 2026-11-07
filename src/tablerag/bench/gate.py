@@ -70,7 +70,7 @@ def metric(entry: dict, section: str, name: str) -> float | None:
     if section == "structured_path" and name == "coverage":
         return block["questions_taken"] / block["of"] if block.get("of") else None
     value = block.get(name)
-    return float(value) if isinstance(value, (int, float)) else None
+    return float(value) if isinstance(value, int | float) else None
 
 
 def compare(baseline: dict, current: dict, tolerance: float = 0.0) -> tuple[list[Row], list[str]]:
