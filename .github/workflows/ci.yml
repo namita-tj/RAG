@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch or pull request cancels the run that is still going.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: Lint, tests and benchmark (Python ${{ matrix.python-version }})
@@ -44,6 +49,16 @@ jobs:
       # and writes the comparison table to the run's summary page.
       - name: Benchmark gate
         run: python -m tablerag.bench.gate --baseline results/cpu/results.json --current "$RUNNER_TEMP/results/results.json"
+      # The command-line tool end to end: index a generated datasheet, index it again (nothing is
+      # re-read), and ask a question whose exact answer is known.
+      - name: CLI end to end
+        run: |
+          python -m tablerag.bench.synthetic_docs "$RUNNER_TEMP/example"
+          tablerag index "$RUNNER_TEMP/example" --db "$RUNNER_TEMP/index.db"
+          tablerag index "$RUNNER_TEMP/example" --db "$RUNNER_TEMP/index.db" | grep -q "unchanged 1"
+          tablerag ask "Which stage of the PX-100 covers 1450 rpm?" --db "$RUNNER_TEMP/index.db" --json \
+            | tee "$RUNNER_TEMP/answer.json"
+          python -c "import json,sys; a=json.load(open(sys.argv[1])); assert (a['answer'], a['how']) == ('Stage 7', 'structured'), a" "$RUNNER_TEMP/answer.json"
       - name: Upload benchmark results
         if: always()
         uses: actions/upload-artifact@v4
@@ -51,3 +66,34 @@ jobs:
           name: benchmark-python-${{ matrix.python-version }}
           path: ${{ runner.temp }}/results/
           if-no-files-found: ignore
+
+  docs:
+    name: Links in the docs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      # --offline checks links between files in the repo (README -> docs/, docs -> results/), not websites,
+      # so the check never fails because a paper's site is slow.
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          args: --offline --no-progress README.md docs/*.md
+          fail: true
+
+  docker:
+    name: Docker image builds and runs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: tablerag:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: The command runs inside the image
+        run: docker run --rm tablerag:ci --help

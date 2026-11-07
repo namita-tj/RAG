@@ -20,8 +20,10 @@ import re
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from tablerag.calc import FORMULA_PROMPT, check_formula, fmt
 from tablerag.ingest.structured import derived_fields
 from tablerag.normalize import clean, norm_key, numbers_in, same_value
+from tablerag.query import normalize_query
 from tablerag.retrieve import Retriever
 from tablerag.structured_ops import try_structured
 from tablerag.types import Chunk, StoredRow, StoredTable
@@ -52,7 +54,7 @@ class Reader(Protocol):
 @dataclass
 class Answer:
     text: str
-    route: str  # "reader", "structured", "verified", "refused", "unverified"
+    route: str  # "reader", "structured", "verified", "computed", "refused", "unverified"
     evidence: list[Chunk] = field(default_factory=list)
     rows: list[str] = field(default_factory=list)  # row ids the answer is traced to
     raw: str = ""
@@ -178,7 +180,10 @@ def answer_questions(
     sees tables that appear in the retrieved chunks.
 
     mode "plain": retrieve + reader (all baselines).
-    mode "ours":  structured operations first, then retrieve + reader + check against the evidence.
+    mode "ours":  structured operations first, then retrieve + reader + check against the evidence;
+                  a numeric answer that is printed nowhere gets a second chance as a calculation
+                  the reader writes and the code computes (see calc.py).
+    mode "ours_nocalc": like "ours" without the calculation step (ablation).
     mode "ours_unverified": like "ours" but keeps every reader answer (ablation).
     mode "ours_cite": like "ours" but the reader must cite a row id (the earlier design, ablation).
     """
@@ -189,7 +194,8 @@ def answer_questions(
     results: list[Answer | None] = [None] * len(questions)
     pending: list[tuple[int, list[Chunk], str]] = []
     for i, q in enumerate(questions):
-        hits = [c for c, _ in retriever.search(q["question"], k, q.get("doc_id") if scoped else None)]
+        question = normalize_query(q["question"])  # numbers and units as documents print them
+        hits = [c for c, _ in retriever.search(question, k, q.get("doc_id") if scoped else None)]
         evidence = within_budget(hits, context_chars)  # what the reader will see
         if mode != "plain":
             if scoped:
@@ -197,7 +203,7 @@ def answer_questions(
             else:
                 seen = {c.meta.get("table_id") for c in evidence}
                 candidates = [t for t in (tables or []) if t.table_id in seen]
-            op = try_structured(q["question"], candidates)
+            op = try_structured(question, candidates)
             if op is not None:
                 results[i] = Answer(op.answer, "structured", evidence, [r.row_id for r in op.rows], op.explanation)
                 continue
@@ -206,11 +212,12 @@ def answer_questions(
             (
                 i,
                 evidence,
-                template.format(nf=NOT_FOUND, context=build_context(evidence, context_chars), question=q["question"]),
+                template.format(nf=NOT_FOUND, context=build_context(evidence, context_chars), question=question),
             )
         )
     if pending and reader is None:
         raise ValueError("a reader is needed for questions the structured path cannot answer")
+    calc_pending: list[tuple[int, list[Chunk], str]] = []
     for start in range(0, len(pending), batch_size):
         batch = pending[start : start + batch_size]
         replies = reader.generate([p for _, _, p in batch]) if reader else []
@@ -234,6 +241,34 @@ def answer_questions(
                 results[i] = Answer(text, "unverified", evidence, [], reply)
             else:
                 results[i] = Answer(NOT_FOUND, "refused", evidence, [], reply)
+                if mode == "ours" and numbers_in(text):
+                    calc_pending.append(
+                        (
+                            i,
+                            evidence,
+                            FORMULA_PROMPT.format(
+                                nf=NOT_FOUND,
+                                context=build_context(evidence, context_chars),
+                                question=questions[i]["question"],
+                            ),
+                        )
+                    )
+    # second pass: answers that look calculated, as a formula the code computes and checks
+    for start in range(0, len(calc_pending), batch_size):
+        batch = calc_pending[start : start + batch_size]
+        replies = reader.generate([p for _, _, p in batch]) if reader else []
+        for (i, evidence, _), reply in zip(batch, replies, strict=True):
+            checked = check_formula(reply, " ".join(c.text for c in evidence))
+            if checked is None:
+                continue  # stays refused
+            value, formula, used = checked
+            traced = [
+                rid
+                for c in evidence
+                for rid in c.row_ids
+                if rid in rows and any(n in numbers_in(" ".join(rows[rid].cells.values())) for n in used)
+            ]
+            results[i] = Answer(fmt(value), "computed", evidence, list(dict.fromkeys(traced)), formula)
     return [r for r in results if r is not None]
 
 

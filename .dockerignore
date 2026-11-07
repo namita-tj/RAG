@@ -1,0 +1,9 @@
+.git
+.github
+benchmarks
+results
+notebooks
+tests
+docs
+*.db
+**/__pycache__

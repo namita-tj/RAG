@@ -30,6 +30,7 @@ from tablerag.bench.metrics import (
 from tablerag.bench.specqa import ROW_TYPES
 from tablerag.ingest.baselines import ingest_markdown, ingest_naive
 from tablerag.ingest.structured import ingest_structured
+from tablerag.query import Reranker, normalize_query
 from tablerag.retrieve import BM25, Dense, Hybrid
 from tablerag.types import IngestResult
 
@@ -41,6 +42,7 @@ LABELS = {
     "ours": "Ours: structure-aware rows + exact ops + verification",
     "ours_noverify": "Ours without verification",
     "ours_cite": "Ours with the reader citing row ids (earlier design)",
+    "ours_nocalc": "Ours without checkable calculations",
     "ours_ingest_only": "Ours: ingestion only (plain reader)",
     "ablate_no_context": "Ours without row context",
     "ablate_no_stitch": "Ours without cross-page stitching",
@@ -84,12 +86,14 @@ def ingest_all(name: str, pdfs: list[Path]) -> tuple[list[IngestResult], dict]:
     }
 
 
-def make_retriever(kind: str, chunks, embed_model: Any):  # noqa: ANN001, ANN201
+def make_retriever(kind: str, chunks, embed_model: Any, rerank: Any = None):  # noqa: ANN001, ANN201
     bm25 = BM25(chunks)
     if kind == "bm25":
-        return bm25
-    dense = Dense(chunks, embed_model)
-    return dense if kind == "dense" else Hybrid(bm25, dense)
+        base = bm25
+    else:
+        dense = Dense(chunks, embed_model)
+        base = dense if kind == "dense" else Hybrid(bm25, dense)
+    return Reranker(base, rerank) if rerank is not None else base
 
 
 def run_suite(
@@ -119,14 +123,14 @@ def run_suite(
             entry["ingestion"].update(ingestion_scores(chunks, gold_rows))
         else:
             entry["ingestion"].update({"chunks": len(chunks)})
-        retriever = make_retriever(args.retriever, chunks, embed_model)
+        retriever = make_retriever(args.retriever, chunks, embed_model, getattr(args, "rerank_model", None))
 
         # retrieval
         ranks, cross = [], []
         for q in questions:
             if suite == "specqa" and q["type"] not in ROW_TYPES:
                 continue
-            hits = [c for c, _ in retriever.search(q["question"], 60, q["doc_id"] if scoped else None)]
+            hits = [c for c, _ in retriever.search(normalize_query(q["question"]), 60, q["doc_id"] if scoped else None)]
             if suite == "specqa":
                 ranks.append(chars_until(hits, lambda c, ev=q["evidence"]: chunk_has_row(c, ev)))
                 cross.append(q["cross_page"])
@@ -143,8 +147,8 @@ def run_suite(
         modes = (
             [
                 ("ours", "ours"),
+                ("ours_nocalc", "ours_nocalc"),
                 ("ours_noverify", "ours_unverified"),
-                ("ours_cite", "ours_cite"),
                 ("ours_ingest_only", "plain"),
             ]
             if is_ours
@@ -159,7 +163,7 @@ def run_suite(
                 by_doc.setdefault(t.doc_id, []).append(t)
             taken = right = 0
             for q in questions:
-                op = try_structured(q["question"], by_doc.get(q["doc_id"], []))
+                op = try_structured(normalize_query(q["question"]), by_doc.get(q["doc_id"], []))
                 if op is not None:
                     taken += 1
                     right += correct(q, op.answer)
@@ -325,6 +329,7 @@ def main(argv: list[str] | None = None) -> int:
         default=["naive", "markdown", "camelot", "ours", "ablate_no_context", "ablate_no_stitch", "ablate_rows_only"],
     )
     p.add_argument("--retriever", default="bm25", choices=["bm25", "dense", "hybrid"])
+    p.add_argument("--rerank", default=None, help="cross-encoder to re-order the top 30, e.g. BAAI/bge-reranker-base")
     p.add_argument("--embed-model", default="BAAI/bge-small-en-v1.5")
     p.add_argument("--reader", default=None, help="Hugging Face model id, e.g. Qwen/Qwen2.5-3B-Instruct")
     p.add_argument("--k", type=int, default=30, help="chunks retrieved before the character budget is applied")
@@ -342,10 +347,16 @@ def main(argv: list[str] | None = None) -> int:
         from sentence_transformers import SentenceTransformer
 
         embed_model = SentenceTransformer(args.embed_model)  # load once, share across methods
+    args.rerank_model = None
+    if args.rerank:
+        from sentence_transformers import CrossEncoder
+
+        args.rerank_model = CrossEncoder(args.rerank)  # load once, share across methods
     results: dict[str, Any] = {
         "config": {
             "retriever": args.retriever,
             "embed_model": args.embed_model if args.retriever != "bm25" else None,
+            "rerank": args.rerank,
             "reader": args.reader,
             "k": args.k,
             "context_chars": args.context_chars,

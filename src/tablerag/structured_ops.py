@@ -1,10 +1,12 @@
 """Exact answers computed from the stored rows, for the questions language models get wrong.
 
-Retrieval plus a language model is weak at three kinds of table question:
+Retrieval plus a language model is weak at table questions that need the whole table:
 
-* range lookups  "Which stage covers 1450 rpm?"  (1450 is printed nowhere, only "1200 - 1600")
-* counting       "How many stages are defined?" (needs every row, top-k gives a few)
-* extremes       "What is the highest speed?"   (same problem, plus comparing numbers)
+* range lookups   "Which stage covers 1450 rpm?"   (1450 is printed nowhere, only "1200 - 1600")
+* counting        "How many stages are defined?"  (needs every row, top-k gives a few)
+* filtered counts "How many stages allow intermittent duty?", "... have a pressure above 5 bar?"
+* extremes        "What is the highest speed?", "Which stage has the highest pressure?"
+* totals, means   "What is the total power of all stages?", "What is the average pressure?"
 
 For these, this module finds the table the question is about and computes the answer from
 the stored rows, returning the rows it used so the answer can be checked. When the question
@@ -17,7 +19,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from tablerag.normalize import UNITS, clean, norm_key, parse_number, parse_range, to_base, unit_in_header
+from tablerag.normalize import CHECK_MARKS, UNITS, clean, norm_key, parse_number, parse_range, to_base, unit_in_header
 from tablerag.retrieve import tokenize
 from tablerag.types import StoredRow, StoredTable
 
@@ -27,6 +29,57 @@ _COUNT = re.compile(r"\b(?:how many|number of|count(?: the)?)\s+((?:[a-z\-]+\s+)
 _MAX = re.compile(r"\b(highest|maximum|largest|max|upper|top|peak)\b", re.IGNORECASE)
 _MIN = re.compile(r"\b(lowest|minimum|smallest|min)\b", re.IGNORECASE)
 _CODE = re.compile(r"\b[A-Z]{1,5}-\d+(?:\.\d+)?\b")
+_WHICH = re.compile(r"\bwhich\b", re.IGNORECASE)
+_SUM = re.compile(r"\b(total|sum|combined)\b", re.IGNORECASE)
+_MEAN = re.compile(r"\b(average|mean)\b", re.IGNORECASE)
+_COMPARE = re.compile(
+    r"\b(above|over|more than|greater than|higher than|exceeding|at least|below|under|less than|lower than|at most)"
+    rf"\s+(\d+(?:[.,]\d+)?)\s*(?:({_UNIT_ALT})(?![\w/]))?",
+    re.IGNORECASE,
+)
+_STRICT = {"above", "over", "more than", "greater than", "higher than", "exceeding", "below", "under", "less than"}
+_LOWER = {"below", "under", "less than", "lower than", "at most"}
+# words a count question may contain without being a condition ("How many stages does X define?")
+_FILLER = {
+    "many",
+    "number",
+    "count",
+    "define",
+    "defined",
+    "defines",
+    "list",
+    "listed",
+    "there",
+    "exist",
+    "exists",
+    "has",
+    "have",
+    "contain",
+    "contains",
+    "include",
+    "includes",
+    "specified",
+    "given",
+    "shown",
+    "available",
+    "operating",
+    "total",
+    "all",
+    "be",
+    "can",
+    "allow",
+    "allows",
+    "allowed",
+    "support",
+    "supports",
+    "duty",
+    "mode",
+    "modes",
+    "use",
+    "used",
+    "run",
+    "runs",
+}
 
 
 @dataclass
@@ -107,6 +160,9 @@ def _column_asked(query: str, table: StoredTable, exclude: set[str]) -> str | No
 
 
 def range_lookup(query: str, tables: list[StoredTable]) -> OpResult | None:
+    # "above 1000 rpm" and "how many ... at 1000 rpm" are comparisons and counts, not lookups
+    if _COMPARE.search(clean(query)) or _COUNT.search(clean(query)):
+        return None
     m = _QUANTITY.search(clean(query))
     if not m:
         return None
@@ -168,9 +224,15 @@ def count_rows(query: str, tables: list[StoredTable]) -> OpResult | None:
     head = _singular(words[-1]) if words else ""  # "operating stages" -> "stage", "hours of ..." -> "hour"
     if head not in _row_noun(t):
         return None
-    return OpResult(
-        str(t.row_count), "count", list(t.rows), t.table_id, f"{t.row_count} rows in {t.context or t.table_id}"
-    )
+    cond = _condition(query, t, words)
+    if cond is False:
+        return None
+    if cond is None:
+        return OpResult(
+            str(t.row_count), "count", list(t.rows), t.table_id, f"{t.row_count} rows in {t.context or t.table_id}"
+        )
+    rows, why = cond
+    return OpResult(str(len(rows)), "count_where", rows, t.table_id, f"{len(rows)} rows where {why}")
 
 
 def extreme(query: str, tables: list[StoredTable]) -> OpResult | None:
@@ -205,8 +267,131 @@ def extreme(query: str, tables: list[StoredTable]) -> OpResult | None:
     _, h, vals = candidates[0]
     best = max(vals, key=lambda x: x[0]) if is_max else min(vals, key=lambda x: x[0])
     value = best[0]
+    name = "max" if is_max else "min"
+    if _WHICH.search(query):  # "Which stage has the highest pressure?": the row(s), all of them on a tie
+        rows = [r for v, r in vals if v == value]
+        return OpResult(
+            ", ".join(r.label for r in rows), f"arg{name}", rows, t.table_id, f"{name} of {h} is {_fmt(value)}"
+        )
     answer = str(int(value)) if value == int(value) else repr(value)
-    return OpResult(answer, "max" if is_max else "min", [best[1]], t.table_id, f"{'max' if is_max else 'min'} of {h}")
+    return OpResult(answer, name, [best[1]], t.table_id, f"{name} of {h}")
+
+
+def _fmt(x: float) -> str:
+    """An exact result as text: 12 not 12.0, at most six decimals, no float noise."""
+    if x == int(x):
+        return str(int(x))
+    return f"{x:.6f}".rstrip("0").rstrip(".")
+
+
+def _numbers(t: StoredTable, h: str) -> list[tuple[float, StoredRow]] | None:
+    """The single numbers of a column, or None if it holds ranges or text (then it is not summable)."""
+    out = []
+    for r in t.rows:
+        v = r.cells.get(h, "")
+        if not clean(v):
+            continue
+        n = parse_number(v)
+        if n is None or parse_range(v):
+            return None
+        out.append((n, r))
+    return out if len(out) >= 2 else None
+
+
+_SYNONYMS = {"maximum": "max", "highest": "max", "upper": "max", "minimum": "min", "lowest": "min", "lower": "min"}
+
+
+def _words(text: str) -> set[str]:
+    """Tokens with "maximum"/"highest" read as "max" and "minimum"/"lowest" as "min"."""
+    return {_SYNONYMS.get(w, w) for w in tokenize(text)}
+
+
+def _pick_column(query: str, t: StoredTable, columns: list[str]) -> str | None:
+    """The one column whose name matches the question best; None if none or a tie."""
+    q = _words(query)
+    scored = sorted(((len(q & _words(h)), h) for h in columns), reverse=True)
+    if not scored or scored[0][0] == 0 or (len(scored) > 1 and scored[0][0] == scored[1][0]):
+        return None
+    return scored[0][1]
+
+
+def aggregate(query: str, tables: list[StoredTable]) -> OpResult | None:
+    """Total or mean of one numeric column ("total power", "average pressure")."""
+    is_sum, is_mean = bool(_SUM.search(query)), bool(_MEAN.search(query))
+    if is_sum == is_mean:
+        return None
+    t = _main_table(query, tables)
+    if t is None:
+        return None
+    numeric = [h for h in t.headers[1:] if _numbers(t, h)]
+    h = _pick_column(query, t, numeric)
+    if h is None:
+        return None
+    vals = _numbers(t, h) or []
+    total = sum(v for v, _ in vals)
+    value = total if is_sum else total / len(vals)
+    name = "sum" if is_sum else "mean"
+    return OpResult(
+        _fmt(value),
+        name,
+        [r for _, r in vals],
+        t.table_id,
+        f"{name} of {h} over {len(vals)} rows of {t.context or t.table_id}",
+    )
+
+
+def _compare(op: str, a: float, b: float) -> bool:
+    if op in _LOWER:
+        return a < b if op in _STRICT else a <= b
+    return a > b if op in _STRICT else a >= b
+
+
+def _condition(query: str, t: StoredTable, head_words: list[str]) -> tuple[list[StoredRow], str] | None | bool:
+    """The rows a count question is restricted to. None: no condition (count every row).
+    False: there is a condition, but it is not clear which column it refers to (do not guess)."""
+    m = _COMPARE.search(clean(query))
+    if m:
+        op, number, unit = m.group(1).lower(), float(m.group(2).replace(",", ".")), m.group(3)
+        rest = query[: m.start()] + " " + query[m.end() :]
+        columns = [h for h in t.headers[1:] if _numbers(t, h)]
+        if unit:
+            asked = to_base(number, unit)
+            if asked is None:
+                return False
+            columns = [h for h in columns if (to_base(1.0, unit_in_header(h)) or ("", 0))[0] == asked[0]]
+            h = columns[0] if len(columns) == 1 else _pick_column(rest, t, columns)
+            if h is None:
+                return False
+            factor = (to_base(1.0, unit_in_header(h)) or ("", 1.0))[1]
+            rows = [r for v, r in _numbers(t, h) or [] if _compare(op, v * factor, asked[1])]
+        else:
+            h = _pick_column(rest, t, columns)
+            if h is None:
+                return False
+            rows = [r for v, r in _numbers(t, h) or [] if _compare(op, v, number)]
+        return rows, f"{h} {op} {m.group(2)}{' ' + unit if unit else ''}"
+    known = set(tokenize(f"{t.context} {t.title}")) | {_singular(w) for w in head_words} | set(head_words)
+    words = {w for w in tokenize(query) if w.isalnum() and not w.isdigit()}
+    cond = {w for w in words if w not in known and _singular(w) not in _row_noun(t) and w not in _FILLER}
+    found: list[tuple[str, list[StoredRow]]] = []
+    for h in t.headers[1:]:
+        cells = [norm_key(r.cells.get(h, "")) for r in t.rows]
+        if all(c in CHECK_MARKS or c in {"", "-", "no", "n"} for c in cells):  # a check-mark column
+            if (cond | (words - known)) & set(tokenize(h)):
+                found.append((h, [r for r, c in zip(t.rows, cells, strict=True) if c in CHECK_MARKS]))
+            continue
+        tokens = [set(tokenize(c)) for c in cells]
+        informative = {
+            w for w in (cond | (words & _FILLER)) if any(w in x for x in tokens) and not all(w in x for x in tokens)
+        }
+        if informative:
+            found.append((h, [r for r, x in zip(t.rows, tokens, strict=True) if informative <= x]))
+    if len(found) == 1:
+        h, rows = found[0]
+        return rows, f"{h} matches the question"
+    if found or cond:
+        return False  # several columns could be meant, or a condition no column holds
+    return None
 
 
 def names_a_row(query: str, tables: list[StoredTable]) -> bool:
@@ -221,11 +406,25 @@ def names_a_row(query: str, tables: list[StoredTable]) -> bool:
 
 
 def try_structured(query: str, tables: list[StoredTable]) -> OpResult | None:
-    """The first operation that applies cleanly to the linked tables, or None."""
+    """Answers with the one operation the question asks for, or None.
+
+    The kind of question decides the operation: a count question is only answered by
+    counting, a total or mean only by aggregating. If that operation cannot answer cleanly,
+    no other operation gets a turn, so "how many stages have a maximum speed above X" can
+    never come back as the maximum speed."""
     linked = link_tables(query, tables)
     if not linked or names_a_row(query, linked):
         return None
-    for op in (range_lookup, count_rows, extreme):
+    q = clean(query)
+    if _COUNT.search(q):
+        ops = [count_rows]
+    elif _COMPARE.search(q):
+        return None  # a comparison outside a count ("is it above 5 bar?") is for the reader
+    elif _SUM.search(q) or _MEAN.search(q):
+        ops = [aggregate]
+    else:
+        ops = [range_lookup, extreme]
+    for op in ops:
         res = op(query, linked)
         if res is not None:
             return res

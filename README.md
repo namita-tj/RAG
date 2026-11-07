@@ -16,11 +16,15 @@ number should either be exact and traceable to its cell, or the system should sa
 1. **Keep tables intact.** Tables split across pages are stitched back together, and page headers and footers are
    removed. Every row is stored as a record with its page, section heading and table caption.
 2. **Retrieve rows, not fragments.** Each row becomes its own chunk with that context, next to whole-table and
-   text chunks. Search is hybrid: BM25 plus `bge-small` embeddings.
-3. **Compute what can be computed.** Counts, maximums and "which range contains this value" are answered from the
-   stored table with unit conversion, without the language model.
-4. **Check every answer.** The model's answer is only kept if the value is printed in the retrieved evidence.
-   Otherwise the answer is "NOT FOUND".
+   text chunks. Numbers and units in the question are written the way documents print them ("1,450 revolutions
+   per minute" becomes "1450 rpm"). Search is hybrid, BM25 plus `bge-small` embeddings, with an optional
+   cross-encoder reranker.
+3. **Compute what can be computed.** Counts (also filtered: "how many stages allow intermittent duty"), totals,
+   means, maximums, "which row has the highest value" and "which range contains this value" are answered from
+   the stored table with unit conversion, without the language model.
+4. **Check every answer.** The model's answer is only kept if the value is printed in the retrieved evidence. If
+   the answer needs a calculation, the model writes the formula and the code computes it, and only if every
+   number in the formula is printed in the evidence. Otherwise the answer is "NOT FOUND".
 
 ## Results
 
@@ -70,20 +74,57 @@ How the pipeline and the storage are designed, and why: [docs/design.md](docs/de
 
 ```bash
 pip install -e ".[dev]"
-pytest                          # 54 tests
+pytest                          # 71 tests
 python -m tablerag.bench.run    # CPU benchmark, about a minute
 ```
 
-CI runs linting, the tests and the CPU benchmark on every push. A **benchmark gate** fails the run if any number
-of my method gets worse than the committed baseline in `results/cpu/`, and shows the comparison table on the
-run's summary page. The full GPU benchmark is `notebooks/run_benchmark.ipynb`.
+GitHub Actions does the rest:
 
-## Limits and next steps
+| Workflow | When | What it does |
+| --- | --- | --- |
+| CI | every push and pull request | lint, tests, CPU benchmark, **benchmark gate**, the CLI end to end, links in the docs, Docker build |
+| Weekly dependency check | Mondays | the same checks against the newest dependency versions, to catch upstream changes in PDF libraries |
+| Release | version tag `v*` | tests and gate, then a GitHub Release with the package and benchmark results, and a Docker image on `ghcr.io` |
+| CodeQL | pull requests, weekly | security scan of the code |
+| Dependabot | monthly | update pull requests, which have to pass the gate |
 
-- Only digital PDFs with ruled tables. Borderless tables, scanned pages and formulas are not handled yet.
-- Calculated answers can't be checked yet. Next: let the model write the formula over specific cells and let the
-  code calculate it.
-- SpecQA is synthetic and was written alongside the pipeline. A held-out benchmark on real documents is next.
+The **benchmark gate** fails a run if any number of my method gets worse than the committed baseline in
+`results/cpu/`, and shows the comparison table on the run's summary page. The full GPU benchmark is
+`notebooks/run_benchmark.ipynb`. To release: set the version in `pyproject.toml`, then
+`git tag v0.2.0 && git push origin v0.2.0`.
+
+## Limits
+
+- Only digital PDFs with ruled tables.
+- SpecQA is synthetic and was written alongside the pipeline. Each result is one run, without error bars.
+- The GPU results above are from before the filtered counts, totals, calculations and query clean-up; a rerun of
+  my method updates them.
+- The embedding model, the BM25 weight and the 2,000-character context are sensible defaults, not tuned values.
+  The retrieval sweep (`python -m tablerag.bench.sweep`, details in [docs/benchmark.md](docs/benchmark.md)) tunes
+  the first two on one half of the documents and reports on the other half.
+
+## Future work
+
+**Reading more kinds of documents**
+- Borderless tables, found by how their words line up in columns.
+- Scanned pages and tables that are images: OpenCV for the grid, Tesseract for the text, and refusal when the OCR
+  is unsure of a number.
+- Symbols, superscripts and subscripts (m/s², x²) from font size and position; full formulas to LaTeX.
+- Merged cells and multi-level headers, rotated pages and multi-column layouts.
+- Docling's table model as a fallback reader, with this structure layer on top.
+
+**Answering**
+- Tuning stage 2: context budget (1,000 / 2,000 / 4,000 characters) and reader models of other families and sizes
+  (Llama 3.2 3B, Phi-3.5-mini, Qwen2.5 7B in 4-bit), with the time per question next to the accuracy.
+- Exact operations as SQL queries over the stored cells, with a test that they match the Python version.
+- A risk-coverage curve: precision when answering 50%, 80% or all questions, instead of one cut-off.
+
+**Evaluation**
+- A held-out benchmark on real documents from several fields, and error bars over several runs.
+- One embedding run through the saved index with the real model (the tests use a stand-in).
+
+**Using it**
+- An HTTP API and a small web demo on top of the index.
 
 ## Project layout
 

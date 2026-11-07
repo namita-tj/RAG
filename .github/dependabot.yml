@@ -1,0 +1,19 @@
+# Monthly pull requests for outdated dependencies and GitHub Actions. Each one runs through CI,
+# including the benchmark gate, so an update that changes how PDFs are read can't be merged unnoticed.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      python:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

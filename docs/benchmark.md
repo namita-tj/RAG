@@ -147,18 +147,27 @@ method with the same rules, so a reply like "NOT_FOUND" counts as a refusal for 
 - The reader is a 3B model. A bigger reader would score higher for every method; the comparison is about
   what each pipeline gives the same reader.
 
+## Tuning retrieval
+
+The embedding model and the BM25 weight were defaults, chosen for the scope (small, CPU-friendly) but never
+compared with alternatives. `src/tablerag/bench/sweep.py` tests them without tuning on the test questions:
+
+1. **Split by document.** Each benchmark's documents are split in half with a fixed seed (SpecQA 4 + 4 datasheets,
+   T²-RAGBench 100 + 100 reports), so no table is in both halves.
+2. **Tune on the dev half.** Five embedding models (`bge-small-en-v1.5`, `bge-base-en-v1.5`, `e5-base-v2`,
+   `bge-m3`, `multilingual-e5-base`) times five BM25 weights (0, 0.3, 0.5, 0.7, 1), plus the cross-encoder reranker
+   on each model's best weight. Only retrieval is scored (found@1000, found@2000, MRR), so no reader is needed.
+   Each model encodes the chunks once and every weight reuses those scores.
+3. **Report on the test half once:** the chosen setting (highest mean found@1000; ties go to the smaller model and
+   to no reranker) against today's defaults.
+
+At weight 1 the sweep reproduces the main benchmark's BM25 numbers exactly, which `tests/test_sweep.py` checks.
+Results: `results/sweep/summary.md`. Tuning the context budget and the reader model (stage 2) needs answers from
+the reader and is future work.
+
 ## What's next
 
-- **Checkable calculations.** Let the model write the formula over specific cells (for example
-  `(revenue 2019 - revenue 2018) / revenue 2018`) and have the code calculate it. Then calculated answers can be
-  checked too, which is exactly where FinQA fails today.
-- **A risk-coverage curve** instead of one cut-off: precision when answering 50%, 80% or all questions.
-- **Docling's table model as the front end** for borderless and scanned tables, with my structure layer on top.
-- **Exact operations in SQL.** The rows are already stored with parsed numbers and ranges (see
-  [design.md](design.md#storage)); the next step is running counts, maximums and range lookups as SQL queries,
-  with a test that they match the Python version.
-- **Formulas, symbols and nested tables**, which the current front end doesn't handle.
-- **A held-out benchmark on real documents** from different fields, to see whether it generalises.
+See "Future work" in the [README](../README.md).
 
 ## Sources
 

@@ -67,14 +67,30 @@ answer it can point to.**
 - **Three kinds of chunks:** one per row (with its full context), one per small table, and a short profile per
   table (columns, row count, value ranges). Ranges like "900 - 1500" also get min and max fields, and check
   marks become "yes".
-- **Exact answers without the language model** (`src/tablerag/structured_ops.py`). Range lookups, row counts and
-  highest or lowest values are computed from the stored rows, with unit conversion. When a question doesn't
-  clearly match one table and one operation, this step does nothing and the normal path answers instead.
-  It never guesses.
+- **Query clean-up** (`src/tablerag/query.py`). Numbers and units are rewritten the way documents print them:
+  "1,450 revolutions per minute" becomes "1450 rpm", "5 bars" becomes "5 bar". Only a number followed by a unit
+  is touched. An optional cross-encoder reranker re-orders the top 30 candidates, which helps with near-identical
+  rows like "Stage 4" and "Stage 14".
+- **Exact answers without the language model** (`src/tablerag/structured_ops.py`). Computed from the stored rows,
+  with unit conversion:
+  - range lookups ("which stage covers 1450 rpm"),
+  - counts, also filtered by a value ("how many stages allow intermittent duty") or a threshold ("how many have
+    a maximum pressure above 5 bar", also given as "600 kPa"),
+  - totals and means of a column,
+  - highest and lowest values, and which row has them (all tied rows are listed).
+
+  The kind of question decides the operation: a count question is only ever answered by counting. When the
+  question doesn't clearly match one table, one column and one operation, this step does nothing and the normal
+  path answers instead. It never guesses.
 - **Check every answer against the evidence** (`src/tablerag/answer.py`). After the model answers, the code
   checks that the value is actually printed in a retrieved row or passage. If several rows print it, the row
   the question names wins. A yes/no answer is only kept when the row the question asks about was retrieved.
   Otherwise the system says "NOT FOUND", which you can check, instead of a number that might be wrong.
+- **Checkable calculations** (`src/tablerag/calc.py`). A small model is bad at arithmetic, and a calculated
+  answer is printed nowhere, so the check above would refuse it. When the model's number isn't in the evidence,
+  it is asked for the calculation instead, for example `(5829 - 5735) / 5735 * 100`. The code evaluates it safely
+  (only numbers, + - * / and parentheses, nothing that can run as code) and keeps the result only if every number
+  in the formula is printed in the evidence.
 
 ## Storage
 
